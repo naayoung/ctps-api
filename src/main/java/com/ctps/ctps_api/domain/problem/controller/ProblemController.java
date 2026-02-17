@@ -1,0 +1,58 @@
+package com.ctps.ctps_api.domain.problem.controller;
+
+import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
+import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
+import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
+import com.ctps.ctps_api.domain.problem.service.ProblemService;
+import com.ctps.ctps_api.global.response.ApiResponse;
+import jakarta.validation.Valid;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/problems")
+@RequiredArgsConstructor
+public class ProblemController {
+
+    private final ProblemService problemService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<ProblemResponse>>> getProblems() {
+        return ResponseEntity.ok(ApiResponse.success("문제 목록 조회 성공", problemService.getProblems()));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProblemResponse>> getProblem(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("문제 조회 성공", problemService.getProblem(id)));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<ProblemResponse>> createProblem(@Valid @RequestBody ProblemCreateRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("문제 등록 성공", problemService.createProblem(request)));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<ProblemResponse>> updateProblem(
+            @PathVariable Long id,
+            @RequestBody ProblemUpdateRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.success("문제 수정 성공", problemService.updateProblem(id, request)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteProblem(@PathVariable Long id) {
+        problemService.deleteProblem(id);
+        return ResponseEntity.ok(ApiResponse.success("문제 삭제 성공"));
+    }
+}
