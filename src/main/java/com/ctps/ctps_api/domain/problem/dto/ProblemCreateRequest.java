@@ -13,6 +13,8 @@ public class ProblemCreateRequest {
     @NotBlank
     private String platform;
 
+    private String title;
+
     @NotBlank
     private String number;
 

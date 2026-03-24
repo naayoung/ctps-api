@@ -13,6 +13,7 @@ public class ProblemResponse {
 
     private String id;
     private String platform;
+    private String title;
     private String number;
     private String link;
     private List<String> tags;
@@ -31,6 +32,7 @@ public class ProblemResponse {
         return ProblemResponse.builder()
                 .id(String.valueOf(problem.getId()))
                 .platform(problem.getPlatform())
+                .title(problem.getTitle())
                 .number(problem.getNumber())
                 .link(problem.getLink())
                 .tags(problem.getTags())

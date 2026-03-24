@@ -3,7 +3,10 @@ package com.ctps.ctps_api.domain.problem.controller;
 import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
+import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
+import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
+import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.global.response.ApiResponse;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProblemController {
 
     private final ProblemService problemService;
+    private final ProblemSearchService problemSearchService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ProblemResponse>>> getProblems() {
@@ -34,6 +38,11 @@ public class ProblemController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ProblemResponse>> getProblem(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("문제 조회 성공", problemService.getProblem(id)));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<ProblemSearchResponse>> searchProblems(@Valid ProblemSearchRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("문제 검색 성공", problemSearchService.search(request)));
     }
 
     @PostMapping

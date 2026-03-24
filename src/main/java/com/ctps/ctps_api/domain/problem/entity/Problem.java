@@ -46,6 +46,9 @@ public class Problem {
     @Column(nullable = false, length = 50)
     private String platform;
 
+    @Column(nullable = false, length = 255)
+    private String title;
+
     @Column(nullable = false, length = 100)
     private String number;
 
@@ -94,6 +97,7 @@ public class Problem {
     @Builder
     public Problem(
             String platform,
+            String title,
             String number,
             String link,
             List<String> tags,
@@ -109,6 +113,7 @@ public class Problem {
             boolean bookmarked
     ) {
         this.platform = platform;
+        this.title = title;
         this.number = number;
         this.link = link;
         this.tags = tags == null ? new ArrayList<>() : new ArrayList<>(tags);
@@ -126,6 +131,7 @@ public class Problem {
 
     public void patch(
             String platform,
+            String title,
             String number,
             String link,
             List<String> tags,
@@ -140,6 +146,7 @@ public class Problem {
             Boolean bookmarked
     ) {
         if (platform != null) this.platform = platform;
+        if (title != null) this.title = title;
         if (number != null) this.number = number;
         if (link != null) this.link = link;
         if (tags != null) this.tags = new ArrayList<>(tags);

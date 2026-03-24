@@ -23,6 +23,7 @@ public class ProblemService {
     public ProblemResponse createProblem(ProblemCreateRequest request) {
         Problem problem = Problem.builder()
                 .platform(request.getPlatform())
+                .title(resolveTitle(request.getTitle(), request.getNumber()))
                 .number(request.getNumber())
                 .link(request.getLink())
                 .tags(request.getTags())
@@ -54,6 +55,7 @@ public class ProblemService {
         Problem problem = findById(id);
         problem.patch(
                 request.getPlatform(),
+                request.getTitle(),
                 request.getNumber(),
                 request.getLink(),
                 request.getTags(),
@@ -79,5 +81,12 @@ public class ProblemService {
     private Problem findById(Long id) {
         return problemRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("문제를 찾을 수 없습니다. id=" + id));
+    }
+
+    private String resolveTitle(String title, String number) {
+        if (title != null && !title.isBlank()) {
+            return title;
+        }
+        return number;
     }
 }

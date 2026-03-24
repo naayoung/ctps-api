@@ -9,6 +9,7 @@ import lombok.Getter;
 public class ProblemUpdateRequest {
 
     private String platform;
+    private String title;
     private String number;
     private String link;
     private List<String> tags;
