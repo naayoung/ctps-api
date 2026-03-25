@@ -17,6 +17,7 @@ import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
 import com.ctps.ctps_api.global.security.AuthenticatedUser;
 import com.ctps.ctps_api.global.security.ClientRequestResolver;
+import com.ctps.ctps_api.global.security.CorsOriginProperties;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
 import com.ctps.ctps_api.global.security.CsrfProtectionInterceptor;
 import com.ctps.ctps_api.global.security.InMemoryRateLimitService;
@@ -59,6 +60,9 @@ class ExternalProblemControllerTest {
 
     @MockBean
     private ClientRequestResolver clientRequestResolver;
+
+    @MockBean
+    private CorsOriginProperties corsOriginProperties;
 
     @BeforeEach
     void setUp() throws Exception {

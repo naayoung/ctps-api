@@ -13,6 +13,7 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
+import com.ctps.ctps_api.global.security.CorsOriginProperties;
 import com.ctps.ctps_api.global.security.CsrfProtectionInterceptor;
 import com.ctps.ctps_api.global.security.UserAuthenticationInterceptor;
 import java.time.LocalDate;
@@ -46,6 +47,9 @@ class ProblemControllerSearchTest {
 
     @MockBean
     private CsrfProtectionInterceptor csrfProtectionInterceptor;
+
+    @MockBean
+    private CorsOriginProperties corsOriginProperties;
 
     @BeforeEach
     void setUp() throws Exception {
