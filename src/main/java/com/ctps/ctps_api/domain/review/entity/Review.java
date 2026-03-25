@@ -47,10 +47,10 @@ public class Review {
         this.nextReviewDate = nextReviewDate;
     }
 
-    public void check(LocalDate reviewedDate) {
+    public void completeReview(LocalDate reviewedDate, LocalDate nextReviewDate) {
         this.reviewCount += 1;
         this.lastReviewedDate = reviewedDate;
-        this.nextReviewDate = reviewedDate.plusDays(1);
+        this.nextReviewDate = nextReviewDate;
     }
 
     public void markPending(LocalDate nextReviewDate) {

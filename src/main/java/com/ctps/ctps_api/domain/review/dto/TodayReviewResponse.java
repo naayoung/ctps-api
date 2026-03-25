@@ -15,4 +15,5 @@ public class TodayReviewResponse {
     private String level;
     private int reviewCount;
     private LocalDate nextReviewDate;
+    private Integer overdueDays;
 }

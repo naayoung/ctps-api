@@ -1,6 +1,7 @@
 package com.ctps.ctps_api.domain.review.controller;
 
 import com.ctps.ctps_api.domain.review.dto.ReviewCheckResponse;
+import com.ctps.ctps_api.domain.review.dto.ReviewHistoryResponse;
 import com.ctps.ctps_api.domain.review.dto.TodayReviewResponse;
 import com.ctps.ctps_api.domain.review.service.ReviewService;
 import com.ctps.ctps_api.global.response.ApiResponse;
@@ -27,6 +28,12 @@ public class ReviewController {
     public ResponseEntity<ApiResponse<ReviewCheckResponse>> checkReview(@PathVariable Long problemId) {
         ReviewCheckResponse response = reviewService.checkReview(problemId);
         return ResponseEntity.ok(ApiResponse.success("복습 체크 성공", response));
+    }
+
+    @GetMapping("/{problemId}/history")
+    public ResponseEntity<ApiResponse<ReviewHistoryResponse>> getReviewHistory(@PathVariable Long problemId) {
+        ReviewHistoryResponse response = reviewService.getReviewHistory(problemId);
+        return ResponseEntity.ok(ApiResponse.success("복습 이력 조회 성공", response));
     }
 
     @GetMapping("/today")

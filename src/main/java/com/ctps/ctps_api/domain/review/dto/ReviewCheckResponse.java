@@ -12,4 +12,5 @@ public class ReviewCheckResponse {
     private int reviewCount;
     private LocalDate lastReviewedDate;
     private LocalDate nextReviewDate;
+    private int intervalDays;
 }
