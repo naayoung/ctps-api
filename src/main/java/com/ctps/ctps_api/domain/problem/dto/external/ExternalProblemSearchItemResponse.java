@@ -4,9 +4,11 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
+@Jacksonized
 public class ExternalProblemSearchItemResponse {
 
     private String id;
@@ -18,4 +20,5 @@ public class ExternalProblemSearchItemResponse {
     private String externalUrl;
     private String recommendationReason;
     private boolean solved;
+    private Integer relevanceScore;
 }
