@@ -138,6 +138,10 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
             predicates.add(cb.equal(root.get("needsReview"), request.getNeedsReview()));
         }
 
+        if (request.getBookmarked() != null) {
+            predicates.add(cb.equal(root.get("bookmarked"), request.getBookmarked()));
+        }
+
         return predicates;
     }
 

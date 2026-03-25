@@ -17,6 +17,7 @@ public class ProblemSearchRequest {
     private List<String> tags;
     private List<Problem.Result> result;
     private Boolean needsReview;
+    private Boolean bookmarked;
     private String sort = "relevance,desc";
 
     @Min(0)
@@ -65,5 +66,9 @@ public class ProblemSearchRequest {
 
     public String getKeyword() {
         return keyword == null ? null : keyword.trim();
+    }
+
+    public Boolean getBookmarked() {
+        return bookmarked;
     }
 }

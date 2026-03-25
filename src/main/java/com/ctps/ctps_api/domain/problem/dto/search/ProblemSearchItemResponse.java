@@ -19,6 +19,7 @@ public class ProblemSearchItemResponse {
     private List<String> tags;
     private Problem.Result result;
     private boolean needsReview;
+    private boolean bookmarked;
     private LocalDate lastSolvedAt;
     private LocalDateTime createdAt;
 
@@ -32,6 +33,7 @@ public class ProblemSearchItemResponse {
                 .tags(problem.getTags())
                 .result(problem.getResult())
                 .needsReview(problem.isNeedsReview())
+                .bookmarked(problem.isBookmarked())
                 .lastSolvedAt(problem.getLastSolvedAt())
                 .createdAt(problem.getCreatedAt())
                 .build();
