@@ -1,5 +1,6 @@
 package com.ctps.ctps_api.domain.problem.entity;
 
+import com.ctps.ctps_api.domain.auth.entity.User;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -11,6 +12,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -42,6 +44,10 @@ public class Problem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(nullable = false, length = 50)
     private String platform;
@@ -97,6 +103,7 @@ public class Problem {
     @Builder
     public Problem(
             String platform,
+            User user,
             String title,
             String number,
             String link,
@@ -112,6 +119,7 @@ public class Problem {
             LocalDate lastSolvedAt,
             boolean bookmarked
     ) {
+        this.user = user;
         this.platform = platform;
         this.title = title;
         this.number = number;
@@ -159,5 +167,17 @@ public class Problem {
         if (solvedDates != null) this.solvedDates = new ArrayList<>(solvedDates);
         this.lastSolvedAt = lastSolvedAt;
         if (bookmarked != null) this.bookmarked = bookmarked;
+    }
+
+    public void markReviewRequired() {
+        this.needsReview = true;
+    }
+
+    public void markReviewCompleted(LocalDate reviewedDate) {
+        this.needsReview = false;
+        this.reviewedAt = reviewedDate;
+        if (!this.reviewHistory.contains(reviewedDate)) {
+            this.reviewHistory.add(reviewedDate);
+        }
     }
 }

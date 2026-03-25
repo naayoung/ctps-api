@@ -2,6 +2,7 @@ package com.ctps.ctps_api.domain.problem.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,9 +13,12 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
+import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
+import com.ctps.ctps_api.global.security.UserAuthenticationInterceptor;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -34,6 +38,18 @@ class ExternalProblemControllerTest {
 
     @MockBean
     private ExternalProblemSearchService externalProblemSearchService;
+
+    @MockBean
+    private UserAuthenticationInterceptor userAuthenticationInterceptor;
+
+    @MockBean
+    private AdminAuthenticationInterceptor adminAuthenticationInterceptor;
+
+    @BeforeEach
+    void setUp() throws Exception {
+        doReturn(true).when(userAuthenticationInterceptor)
+                .preHandle(any(), any(), any());
+    }
 
     @Test
     @DisplayName("외부 문제 검색 API는 추천 문제 목록과 페이지 메타데이터를 반환한다")

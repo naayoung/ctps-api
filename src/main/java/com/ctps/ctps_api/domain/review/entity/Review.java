@@ -52,4 +52,8 @@ public class Review {
         this.lastReviewedDate = reviewedDate;
         this.nextReviewDate = reviewedDate.plusDays(1);
     }
+
+    public void markPending(LocalDate nextReviewDate) {
+        this.nextReviewDate = nextReviewDate;
+    }
 }

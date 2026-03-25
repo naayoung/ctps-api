@@ -6,5 +6,5 @@ import org.springframework.data.domain.Page;
 
 public interface ProblemSearchRepository {
 
-    Page<Problem> searchProblems(ProblemSearchRequest request);
+    Page<Problem> searchProblems(Long userId, ProblemSearchRequest request);
 }

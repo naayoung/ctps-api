@@ -5,6 +5,7 @@ import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
+import com.ctps.ctps_api.global.security.CurrentUserContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -18,7 +19,8 @@ public class ProblemSearchService {
     private final ProblemRepository problemRepository;
 
     public ProblemSearchResponse search(ProblemSearchRequest request) {
-        Page<Problem> searchPage = problemRepository.searchProblems(request);
+        Long userId = CurrentUserContext.getRequired().getId();
+        Page<Problem> searchPage = problemRepository.searchProblems(userId, request);
         Page<ProblemSearchItemResponse> responsePage = searchPage.map(ProblemSearchItemResponse::from);
         return ProblemSearchResponse.from(responsePage);
     }

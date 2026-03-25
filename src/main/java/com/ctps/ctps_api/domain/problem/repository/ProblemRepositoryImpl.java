@@ -32,16 +32,16 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
     private EntityManager entityManager;
 
     @Override
-    public Page<Problem> searchProblems(ProblemSearchRequest request) {
+    public Page<Problem> searchProblems(Long userId, ProblemSearchRequest request) {
         Pageable pageable = request.toPageable();
         CriteriaBuilder cb = entityManager.getCriteriaBuilder();
 
-        List<Long> ids = findProblemIds(request, pageable, cb);
+        List<Long> ids = findProblemIds(userId, request, pageable, cb);
         if (ids.isEmpty()) {
             return new PageImpl<>(List.of(), pageable, 0);
         }
 
-        long total = countProblems(request, cb);
+        long total = countProblems(userId, request, cb);
         List<Problem> problems = findProblemsWithTags(ids);
 
         Map<Long, Problem> problemMap = new LinkedHashMap<>();
@@ -57,12 +57,12 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
         return new PageImpl<>(ordered, pageable, total);
     }
 
-    private List<Long> findProblemIds(ProblemSearchRequest request, Pageable pageable, CriteriaBuilder cb) {
+    private List<Long> findProblemIds(Long userId, ProblemSearchRequest request, Pageable pageable, CriteriaBuilder cb) {
         CriteriaQuery<Long> query = cb.createQuery(Long.class);
         Root<Problem> root = query.from(Problem.class);
 
         query.select(root.get("id"));
-        query.where(buildPredicates(request, query, cb, root).toArray(Predicate[]::new));
+        query.where(buildPredicates(userId, request, query, cb, root).toArray(Predicate[]::new));
         query.orderBy(buildOrders(request, query, cb, root));
 
         TypedQuery<Long> typedQuery = entityManager.createQuery(query);
@@ -71,12 +71,12 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
         return typedQuery.getResultList();
     }
 
-    private long countProblems(ProblemSearchRequest request, CriteriaBuilder cb) {
+    private long countProblems(Long userId, ProblemSearchRequest request, CriteriaBuilder cb) {
         CriteriaQuery<Long> countQuery = cb.createQuery(Long.class);
         Root<Problem> root = countQuery.from(Problem.class);
 
         countQuery.select(cb.count(root));
-        countQuery.where(buildPredicates(request, countQuery, cb, root).toArray(Predicate[]::new));
+        countQuery.where(buildPredicates(userId, request, countQuery, cb, root).toArray(Predicate[]::new));
 
         return entityManager.createQuery(countQuery).getSingleResult();
     }
@@ -91,12 +91,14 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
     }
 
     private List<Predicate> buildPredicates(
+            Long userId,
             ProblemSearchRequest request,
             CriteriaQuery<?> query,
             CriteriaBuilder cb,
             Root<Problem> root
     ) {
         List<Predicate> predicates = new ArrayList<>();
+        predicates.add(cb.equal(root.get("user").get("id"), userId));
 
         if (StringUtils.hasText(request.getKeyword())) {
             String keyword = "%" + request.getKeyword().toLowerCase() + "%";

@@ -11,4 +11,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
     Optional<Review> findByProblemId(Long problemId);
 
     List<Review> findAllByNextReviewDateLessThanEqual(LocalDate date);
+
+    Optional<Review> findByProblemIdAndProblemUserId(Long problemId, Long userId);
+
+    List<Review> findAllByProblemUserIdAndNextReviewDateLessThanEqual(Long userId, LocalDate date);
 }

@@ -1,5 +1,6 @@
 package com.ctps.ctps_api.domain.studyset.entity;
 
+import com.ctps.ctps_api.domain.auth.entity.User;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -9,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,6 +30,10 @@ public class StudySet {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
     @Column(nullable = false, length = 100)
     private String name;
 
@@ -45,7 +51,14 @@ public class StudySet {
     private LocalDateTime createdAt;
 
     @Builder
-    public StudySet(String name, List<String> problemIds, List<String> completedProblemIds, LocalDateTime createdAt) {
+    public StudySet(
+            User user,
+            String name,
+            List<String> problemIds,
+            List<String> completedProblemIds,
+            LocalDateTime createdAt
+    ) {
+        this.user = user;
         this.name = name;
         this.problemIds = problemIds == null ? new ArrayList<>() : new ArrayList<>(problemIds);
         this.completedProblemIds = completedProblemIds == null ? new ArrayList<>() : new ArrayList<>(completedProblemIds);

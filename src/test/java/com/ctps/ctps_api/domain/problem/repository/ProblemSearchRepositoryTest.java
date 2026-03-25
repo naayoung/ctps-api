@@ -2,6 +2,7 @@ package com.ctps.ctps_api.domain.problem.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ctps.ctps_api.domain.auth.entity.User;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import java.time.LocalDate;
@@ -65,7 +66,7 @@ class ProblemSearchRepositoryTest {
                 .sort("lastSolvedAt,desc")
                 .build();
 
-        var result = problemRepository.searchProblems(request);
+        var result = problemRepository.searchProblems(ensureUser().getId(), request);
 
         assertThat(result.getTotalElements()).isEqualTo(1);
         assertThat(result.getContent()).extracting(Problem::getId).containsExactly(graphProblem.getId());
@@ -85,7 +86,7 @@ class ProblemSearchRepositoryTest {
                 .sort("difficulty,desc")
                 .build();
 
-        var result = problemRepository.searchProblems(request);
+        var result = problemRepository.searchProblems(ensureUser().getId(), request);
 
         assertThat(result.getContent()).extracting(Problem::getTitle)
                 .containsExactly("어려운 문제", "보통 문제", "쉬운 문제");
@@ -102,7 +103,10 @@ class ProblemSearchRepositoryTest {
             LocalDate lastSolvedAt,
             LocalDateTime createdAt
     ) {
+        User user = ensureUser();
+
         Problem problem = Problem.builder()
+                .user(user)
                 .platform(platform)
                 .title(title)
                 .number(number)
@@ -123,6 +127,24 @@ class ProblemSearchRepositoryTest {
         entityManager.flush();
         entityManager.clear();
         return saved;
+    }
+
+    private User ensureUser() {
+        List<User> users = entityManager.getEntityManager()
+                .createQuery("select u from User u where u.username = :username", User.class)
+                .setParameter("username", "tester")
+                .getResultList();
+
+        if (!users.isEmpty()) {
+            return users.get(0);
+        }
+
+        return entityManager.persist(User.builder()
+                .username("tester")
+                .passwordHash("hashed-password")
+                .displayName("테스터")
+                .createdAt(LocalDateTime.of(2026, 3, 1, 0, 0))
+                .build());
     }
 
     private static final class ProblemSearchRequestFixture {

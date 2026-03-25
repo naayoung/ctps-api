@@ -7,6 +7,7 @@ import com.ctps.ctps_api.domain.review.dto.TodayReviewResponse;
 import com.ctps.ctps_api.domain.review.entity.Review;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.global.exception.NotFoundException;
+import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,19 +24,21 @@ public class ReviewService {
 
     @Transactional
     public ReviewCheckResponse checkReview(Long problemId) {
-        Problem problem = problemRepository.findById(problemId)
+        Long userId = CurrentUserContext.getRequired().getId();
+        Problem problem = problemRepository.findByIdAndUserId(problemId, userId)
                 .orElseThrow(() -> new NotFoundException("문제를 찾을 수 없습니다. id=" + problemId));
 
         LocalDate today = LocalDate.now();
-        Review review = reviewRepository.findByProblemId(problemId)
+        Review review = reviewRepository.findByProblemIdAndProblemUserId(problemId, userId)
                 .orElseGet(() -> reviewRepository.save(Review.builder()
                         .problem(problem)
-                        .reviewCount(0)
-                        .lastReviewedDate(today)
+                        .reviewCount(problem.getReviewHistory().size())
+                        .lastReviewedDate(problem.getReviewedAt() != null ? problem.getReviewedAt() : today)
                         .nextReviewDate(today)
                         .build()));
 
         review.check(today);
+        problem.markReviewCompleted(today);
 
         return ReviewCheckResponse.builder()
                 .problemId(problemId)
@@ -47,8 +50,10 @@ public class ReviewService {
 
     public List<TodayReviewResponse> getTodayReviews(LocalDate date) {
         LocalDate targetDate = date == null ? LocalDate.now() : date;
+        Long userId = CurrentUserContext.getRequired().getId();
 
-        return reviewRepository.findAllByNextReviewDateLessThanEqual(targetDate).stream()
+        return reviewRepository.findAllByProblemUserIdAndNextReviewDateLessThanEqual(userId, targetDate).stream()
+                .filter(review -> review.getProblem().isNeedsReview())
                 .map(review -> TodayReviewResponse.builder()
                         .reviewId(review.getId())
                         .problemId(review.getProblem().getId())

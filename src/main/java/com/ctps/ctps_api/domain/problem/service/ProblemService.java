@@ -1,11 +1,17 @@
 package com.ctps.ctps_api.domain.problem.service;
 
+import com.ctps.ctps_api.domain.auth.entity.User;
+import com.ctps.ctps_api.domain.auth.repository.UserRepository;
 import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
+import com.ctps.ctps_api.domain.review.entity.Review;
+import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.global.exception.NotFoundException;
+import com.ctps.ctps_api.global.security.CurrentUserContext;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -18,10 +24,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class ProblemService {
 
     private final ProblemRepository problemRepository;
+    private final UserRepository userRepository;
+    private final ReviewRepository reviewRepository;
 
     @Transactional
     public ProblemResponse createProblem(ProblemCreateRequest request) {
+        User user = userRepository.getReferenceById(CurrentUserContext.getRequired().getId());
         Problem problem = Problem.builder()
+                .user(user)
                 .platform(request.getPlatform())
                 .title(resolveTitle(request.getTitle(), request.getNumber()))
                 .number(request.getNumber())
@@ -39,11 +49,14 @@ public class ProblemService {
                 .bookmarked(request.isBookmarked())
                 .build();
 
-        return ProblemResponse.from(problemRepository.save(problem));
+        Problem saved = problemRepository.save(problem);
+        syncReviewState(saved);
+        return ProblemResponse.from(saved);
     }
 
     public List<ProblemResponse> getProblems() {
-        return problemRepository.findAll().stream().map(ProblemResponse::from).toList();
+        Long userId = CurrentUserContext.getRequired().getId();
+        return problemRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream().map(ProblemResponse::from).toList();
     }
 
     public ProblemResponse getProblem(Long id) {
@@ -69,6 +82,10 @@ public class ProblemService {
                 request.getLastSolvedAt(),
                 request.getBookmarked()
         );
+        if (Boolean.TRUE.equals(request.getNeedsReview())) {
+            problem.markReviewRequired();
+        }
+        syncReviewState(problem);
         return ProblemResponse.from(problem);
     }
 
@@ -79,7 +96,8 @@ public class ProblemService {
     }
 
     private Problem findById(Long id) {
-        return problemRepository.findById(id)
+        Long userId = CurrentUserContext.getRequired().getId();
+        return problemRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("문제를 찾을 수 없습니다. id=" + id));
     }
 
@@ -88,5 +106,21 @@ public class ProblemService {
             return title;
         }
         return number;
+    }
+
+    private void syncReviewState(Problem problem) {
+        if (!problem.isNeedsReview()) {
+            return;
+        }
+
+        LocalDate today = LocalDate.now();
+        Review review = reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), CurrentUserContext.getRequired().getId())
+                .orElseGet(() -> reviewRepository.save(Review.builder()
+                        .problem(problem)
+                        .reviewCount(problem.getReviewHistory().size())
+                        .lastReviewedDate(problem.getReviewedAt() != null ? problem.getReviewedAt() : today)
+                        .nextReviewDate(today)
+                        .build()));
+        review.markPending(today);
     }
 }

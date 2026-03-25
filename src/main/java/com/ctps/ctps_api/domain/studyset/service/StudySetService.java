@@ -1,11 +1,14 @@
 package com.ctps.ctps_api.domain.studyset.service;
 
+import com.ctps.ctps_api.domain.auth.entity.User;
+import com.ctps.ctps_api.domain.auth.repository.UserRepository;
 import com.ctps.ctps_api.domain.studyset.dto.StudySetCreateRequest;
 import com.ctps.ctps_api.domain.studyset.dto.StudySetResponse;
 import com.ctps.ctps_api.domain.studyset.dto.StudySetUpdateRequest;
 import com.ctps.ctps_api.domain.studyset.entity.StudySet;
 import com.ctps.ctps_api.domain.studyset.repository.StudySetRepository;
 import com.ctps.ctps_api.global.exception.NotFoundException;
+import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -18,9 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class StudySetService {
 
     private final StudySetRepository studySetRepository;
+    private final UserRepository userRepository;
 
     public List<StudySetResponse> getStudySets() {
-        return studySetRepository.findAll().stream().map(StudySetResponse::from).toList();
+        Long userId = CurrentUserContext.getRequired().getId();
+        return studySetRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream().map(StudySetResponse::from).toList();
     }
 
     public StudySetResponse getStudySet(Long id) {
@@ -29,7 +34,9 @@ public class StudySetService {
 
     @Transactional
     public StudySetResponse createStudySet(StudySetCreateRequest request) {
+        User user = userRepository.getReferenceById(CurrentUserContext.getRequired().getId());
         StudySet studySet = StudySet.builder()
+                .user(user)
                 .name(request.getName())
                 .problemIds(request.getProblemIds())
                 .completedProblemIds(List.of())
@@ -52,7 +59,8 @@ public class StudySetService {
     }
 
     private StudySet findById(Long id) {
-        return studySetRepository.findById(id)
+        Long userId = CurrentUserContext.getRequired().getId();
+        return studySetRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException("공부 세트를 찾을 수 없습니다. id=" + id));
     }
 }
