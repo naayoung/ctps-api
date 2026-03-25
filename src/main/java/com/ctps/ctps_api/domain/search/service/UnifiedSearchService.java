@@ -27,7 +27,7 @@ public class UnifiedSearchService {
     private final UnifiedSearchRankingService rankingService;
 
     public UnifiedSearchResponse search(ProblemSearchRequest request) {
-        int aggregateSize = Math.max(request.getSize() * 3, 30);
+        int aggregateSize = Math.max((request.getPage() + 1) * request.getSize() * 3, 30);
         ProblemSearchRequest aggregateRequest = request.copyWithPageAndSize(0, aggregateSize);
         ProcessedSearchQuery processedQuery = searchQueryPreprocessor.process(aggregateRequest);
 
@@ -45,16 +45,17 @@ public class UnifiedSearchService {
                 ? List.of()
                 : ranked.subList(start, end).stream().map(UnifiedSearchRankingResult::getItem).toList();
 
-        int totalPages = ranked.isEmpty() ? 0 : (int) Math.ceil((double) ranked.size() / request.getSize());
+        long totalElements = internalResponse.getTotalElements() + externalResponse.getTotalElements();
+        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / request.getSize());
 
         return UnifiedSearchResponse.builder()
                 .query(processedQuery.getRawKeyword())
                 .normalizedTokens(processedQuery.getKeywordTokens())
                 .page(request.getPage())
                 .size(request.getSize())
-                .totalElements(ranked.size())
+                .totalElements(totalElements)
                 .totalPages(totalPages)
-                .hasNext(end < ranked.size())
+                .hasNext((long) (request.getPage() + 1) * request.getSize() < totalElements)
                 .internalCount((int) Math.min(Integer.MAX_VALUE, internalResponse.getTotalElements()))
                 .externalCount((int) Math.min(Integer.MAX_VALUE, externalResponse.getTotalElements()))
                 .items(pageItems)

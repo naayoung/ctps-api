@@ -2,6 +2,7 @@ package com.ctps.ctps_api.domain.problem.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,6 +15,11 @@ import com.ctps.ctps_api.domain.problem.service.ExternalProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
+import com.ctps.ctps_api.global.security.AuthenticatedUser;
+import com.ctps.ctps_api.global.security.ClientRequestResolver;
+import com.ctps.ctps_api.global.security.CurrentUserContext;
+import com.ctps.ctps_api.global.security.CsrfProtectionInterceptor;
+import com.ctps.ctps_api.global.security.InMemoryRateLimitService;
 import com.ctps.ctps_api.global.security.UserAuthenticationInterceptor;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -45,10 +51,28 @@ class ExternalProblemControllerTest {
     @MockBean
     private AdminAuthenticationInterceptor adminAuthenticationInterceptor;
 
+    @MockBean
+    private CsrfProtectionInterceptor csrfProtectionInterceptor;
+
+    @MockBean
+    private InMemoryRateLimitService inMemoryRateLimitService;
+
+    @MockBean
+    private ClientRequestResolver clientRequestResolver;
+
     @BeforeEach
     void setUp() throws Exception {
-        doReturn(true).when(userAuthenticationInterceptor)
+        doAnswer(invocation -> {
+            CurrentUserContext.set(AuthenticatedUser.builder()
+                    .id(1L)
+                    .username("tester")
+                    .displayName("테스터")
+                    .build());
+            return true;
+        }).when(userAuthenticationInterceptor).preHandle(any(), any(), any());
+        doReturn(true).when(csrfProtectionInterceptor)
                 .preHandle(any(), any(), any());
+        given(clientRequestResolver.resolveClientKey(any())).willReturn("127.0.0.1");
     }
 
     @Test

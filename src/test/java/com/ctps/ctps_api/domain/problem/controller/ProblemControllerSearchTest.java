@@ -13,6 +13,7 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
+import com.ctps.ctps_api.global.security.CsrfProtectionInterceptor;
 import com.ctps.ctps_api.global.security.UserAuthenticationInterceptor;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -43,9 +44,14 @@ class ProblemControllerSearchTest {
     @MockBean
     private AdminAuthenticationInterceptor adminAuthenticationInterceptor;
 
+    @MockBean
+    private CsrfProtectionInterceptor csrfProtectionInterceptor;
+
     @BeforeEach
     void setUp() throws Exception {
         doReturn(true).when(userAuthenticationInterceptor)
+                .preHandle(any(), any(), any());
+        doReturn(true).when(csrfProtectionInterceptor)
                 .preHandle(any(), any(), any());
     }
 
