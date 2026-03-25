@@ -4,6 +4,7 @@ import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchItemRe
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemProvider;
+import com.ctps.ctps_api.global.config.ExternalProviderRestClientFactory;
 import java.util.List;
 import java.util.Locale;
 import lombok.extern.slf4j.Slf4j;
@@ -17,9 +18,11 @@ import org.springframework.web.client.RestClient;
 public class LeetCodeExternalProblemProvider implements ExternalProblemProvider {
 
     private static final String BASE_URL = "https://leetcode.com";
-    private final RestClient restClient = RestClient.builder()
-            .baseUrl(BASE_URL)
-            .build();
+    private final RestClient restClient;
+
+    public LeetCodeExternalProblemProvider(ExternalProviderRestClientFactory restClientFactory) {
+        this.restClient = restClientFactory.create(BASE_URL);
+    }
 
     @Override
     public List<ExternalProblemSearchItemResponse> search(ProblemSearchRequest request) {
