@@ -37,7 +37,10 @@ public class SearchController {
             @Valid ProblemSearchRequest request,
             HttpServletRequest httpServletRequest
     ) {
-        String clientKey = CurrentUserContext.getRequired().getId() + ":" + clientRequestResolver.resolveClientKey(httpServletRequest);
+        String principalKey = CurrentUserContext.getOptional()
+                .map(user -> "user:" + user.getId())
+                .orElse("guest");
+        String clientKey = principalKey + ":" + clientRequestResolver.resolveClientKey(httpServletRequest);
         rateLimitService.check(
                 "search:" + clientKey,
                 searchMaxRequests,

@@ -40,11 +40,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userAuthenticationInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/health");
+                .excludePathPatterns(
+                        "/api/auth/login",
+                        "/api/health",
+                        "/api/search",
+                        "/api/external-problems/search"
+                );
 
         registry.addInterceptor(csrfProtectionInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/health");
+                .excludePathPatterns(
+                        "/api/auth/login",
+                        "/api/health",
+                        "/api/search",
+                        "/api/external-problems/search"
+                );
 
         registry.addInterceptor(adminAuthenticationInterceptor)
                 .addPathPatterns("/api/admin/**");

@@ -1,6 +1,7 @@
 package com.ctps.ctps_api.global.security;
 
 import com.ctps.ctps_api.global.exception.UnauthorizedException;
+import java.util.Optional;
 
 public final class CurrentUserContext {
 
@@ -19,6 +20,10 @@ public final class CurrentUserContext {
             throw new UnauthorizedException("로그인이 필요합니다.");
         }
         return user;
+    }
+
+    public static Optional<AuthenticatedUser> getOptional() {
+        return Optional.ofNullable(HOLDER.get());
     }
 
     public static void clear() {
