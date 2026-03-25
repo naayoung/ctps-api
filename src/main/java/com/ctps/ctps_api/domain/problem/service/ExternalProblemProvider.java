@@ -7,4 +7,12 @@ import java.util.List;
 public interface ExternalProblemProvider {
 
     List<ExternalProblemSearchItemResponse> search(ProblemSearchRequest request);
+
+    default String providerKey() {
+        return getClass().getSimpleName();
+    }
+
+    default String providerLabel() {
+        return providerKey();
+    }
 }

@@ -48,12 +48,15 @@ public class LeetCodeExternalProblemProvider implements ExternalProblemProvider 
                     .limit(12)
                     .map(item -> ExternalProblemSearchItemResponse.builder()
                             .id("leetcode-" + item.getStat().getFrontendQuestionId())
+                            .providerKey(providerKey())
+                            .providerLabel(providerLabel())
                             .title(item.getStat().getQuestionTitle())
                             .platform("리트코드")
                             .problemNumber(String.valueOf(item.getStat().getFrontendQuestionId()))
                             .difficulty(mapDifficulty(item.getDifficulty().getLevel()))
                             .tags(List.of())
                             .externalUrl("https://leetcode.com/problems/" + item.getStat().getQuestionTitleSlug() + "/")
+                            .summary("LeetCode 공개 문제셋에서 매칭한 외부 문제")
                             .recommendationReason("LeetCode 공개 문제셋에서 찾은 추천 문제")
                             .solved(false)
                             .build())
@@ -62,6 +65,16 @@ public class LeetCodeExternalProblemProvider implements ExternalProblemProvider 
             log.warn("leetcode provider failed", exception);
             throw new IllegalStateException("leetcode provider failed", exception);
         }
+    }
+
+    @Override
+    public String providerKey() {
+        return "leetcode";
+    }
+
+    @Override
+    public String providerLabel() {
+        return "LeetCode";
     }
 
     private Problem.Difficulty mapDifficulty(int level) {

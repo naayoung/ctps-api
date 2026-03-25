@@ -38,16 +38,29 @@ public class ProgrammersCatalogExternalProblemProvider implements ExternalProble
                 .limit(12)
                 .map(item -> ExternalProblemSearchItemResponse.builder()
                         .id(item.getExternalId())
+                        .providerKey(providerKey())
+                        .providerLabel(providerLabel())
                         .title(item.getTitle())
                         .platform("프로그래머스")
                         .problemNumber(item.getProblemNumber())
                         .difficulty(parseDifficulty(item.getDifficulty()))
                         .tags(readTags(item.getTagsJson()))
                         .externalUrl(item.getExternalUrl())
+                        .summary("프로그래머스 카탈로그에서 적재한 외부 문제")
                         .recommendationReason(item.getRecommendationReason())
                         .solved(false)
                         .build())
                 .toList();
+    }
+
+    @Override
+    public String providerKey() {
+        return "programmers";
+    }
+
+    @Override
+    public String providerLabel() {
+        return "프로그래머스";
     }
 
     private List<String> readTags(String tagsJson) {

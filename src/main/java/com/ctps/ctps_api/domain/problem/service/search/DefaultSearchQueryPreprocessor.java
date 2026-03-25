@@ -1,14 +1,31 @@
 package com.ctps.ctps_api.domain.problem.service.search;
 
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
+import com.ctps.ctps_api.domain.search.preprocess.LowercaseNormalizationStep;
+import com.ctps.ctps_api.domain.search.preprocess.SearchQueryNormalizerPipeline;
+import com.ctps.ctps_api.domain.search.preprocess.SymbolNormalizationStep;
+import com.ctps.ctps_api.domain.search.preprocess.TrimNormalizationStep;
+import com.ctps.ctps_api.domain.search.preprocess.WhitespaceNormalizationStep;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 @Component
+@RequiredArgsConstructor
 public class DefaultSearchQueryPreprocessor implements SearchQueryPreprocessor {
+
+    private final SearchQueryNormalizerPipeline normalizerPipeline;
+
+    public DefaultSearchQueryPreprocessor() {
+        this(new SearchQueryNormalizerPipeline(List.of(
+                new TrimNormalizationStep(),
+                new SymbolNormalizationStep(),
+                new LowercaseNormalizationStep(),
+                new WhitespaceNormalizationStep()
+        )));
+    }
 
     @Override
     public ProcessedSearchQuery process(ProblemSearchRequest request) {
@@ -35,13 +52,6 @@ public class DefaultSearchQueryPreprocessor implements SearchQueryPreprocessor {
     }
 
     private String normalize(String text) {
-        if (!StringUtils.hasText(text)) {
-            return "";
-        }
-
-        return text.toLowerCase(Locale.ROOT)
-                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}\\s]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+        return StringUtils.hasText(text) ? normalizerPipeline.normalize(text) : "";
     }
 }

@@ -64,13 +64,13 @@ public class ExternalProblemSearchService {
             ProblemSearchRequest request,
             ProcessedSearchQuery processedQuery
     ) {
-        String providerName = provider.getClass().getSimpleName();
+        String providerName = resolveProviderKey(provider);
         String queryKey = queryKeyGenerator.generate(providerName, request);
         ExternalProblemCacheService.CachedExternalProblemResult cached = cacheService.findValidCache(providerName, queryKey);
 
         if (cached != null) {
             metricsService.recordCacheHit();
-            return attachProviderSignals(providerName, cached.items(), processedQuery);
+            return attachProviderSignals(provider, cached.items(), processedQuery);
         }
 
         metricsService.recordCacheMiss();
@@ -78,7 +78,7 @@ public class ExternalProblemSearchService {
             List<ExternalProblemSearchItemResponse> providerItems = provider.search(request);
             cacheService.save(providerName, queryKey, providerItems, providerItems.size(), providerItems.isEmpty() ? 0 : 1);
             metricsService.recordProviderSuccess(providerName);
-            return attachProviderSignals(providerName, providerItems, processedQuery);
+            return attachProviderSignals(provider, providerItems, processedQuery);
         } catch (Exception exception) {
             metricsService.recordProviderFailure(providerName);
             log.warn(
@@ -93,10 +93,11 @@ public class ExternalProblemSearchService {
     }
 
     private List<ProviderScoredExternalProblem> attachProviderSignals(
-            String providerName,
+            ExternalProblemProvider provider,
             List<ExternalProblemSearchItemResponse> items,
             ProcessedSearchQuery processedQuery
     ) {
+        String providerName = resolveProviderKey(provider);
         List<ProviderScoreSignal> rawSignals = resolveProviderSignals(providerName, processedQuery, items);
         List<ProviderScoreSignal> normalizedSignals = providerScoreNormalizer.normalize(rawSignals);
 
@@ -104,7 +105,12 @@ public class ExternalProblemSearchService {
         for (int index = 0; index < items.size(); index++) {
             ProviderScoreSignal signal = index < normalizedSignals.size() ? normalizedSignals.get(index) : defaultSignal(providerName);
             results.add(ProviderScoredExternalProblem.builder()
-                    .item(items.get(index))
+                    .item(items.get(index).toBuilder()
+                            .providerKey(providerName)
+                            .providerLabel(resolveProviderLabel(provider, providerName))
+                            .providerScore(signal.getRawScore())
+                            .providerNormalizedScore(signal.getNormalizedScore())
+                            .build())
                     .providerScoreSignal(signal)
                     .build());
         }
@@ -127,6 +133,16 @@ public class ExternalProblemSearchService {
         return ProviderScoreSignal.builder()
                 .providerName(providerName)
                 .build();
+    }
+
+    private String resolveProviderKey(ExternalProblemProvider provider) {
+        String candidate = provider.providerKey();
+        return hasText(candidate) ? candidate : provider.getClass().getSimpleName();
+    }
+
+    private String resolveProviderLabel(ExternalProblemProvider provider, String providerName) {
+        String candidate = provider.providerLabel();
+        return hasText(candidate) ? candidate : providerName;
     }
 
     private List<ProviderScoredExternalProblem> deduplicateAndScore(

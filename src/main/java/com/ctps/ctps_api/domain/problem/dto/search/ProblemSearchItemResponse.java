@@ -20,6 +20,7 @@ public class ProblemSearchItemResponse {
     private Problem.Result result;
     private boolean needsReview;
     private boolean bookmarked;
+    private String memoSummary;
     private LocalDate lastSolvedAt;
     private LocalDateTime createdAt;
 
@@ -34,8 +35,20 @@ public class ProblemSearchItemResponse {
                 .result(problem.getResult())
                 .needsReview(problem.isNeedsReview())
                 .bookmarked(problem.isBookmarked())
+                .memoSummary(summarizeMemo(problem.getMemo()))
                 .lastSolvedAt(problem.getLastSolvedAt())
                 .createdAt(problem.getCreatedAt())
                 .build();
+    }
+
+    private static String summarizeMemo(String memo) {
+        if (memo == null || memo.isBlank()) {
+            return "";
+        }
+        String normalized = memo.trim().replaceAll("\\s+", " ");
+        if (normalized.length() <= 120) {
+            return normalized;
+        }
+        return normalized.substring(0, 117) + "...";
     }
 }

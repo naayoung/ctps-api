@@ -12,13 +12,18 @@ import lombok.extern.jackson.Jacksonized;
 public class ExternalProblemSearchItemResponse {
 
     private String id;
+    private String providerKey;
+    private String providerLabel;
     private String title;
     private String platform;
     private String problemNumber;
     private Problem.Difficulty difficulty;
     private List<String> tags;
     private String externalUrl;
+    private String summary;
     private String recommendationReason;
     private boolean solved;
     private Integer relevanceScore;
+    private Double providerScore;
+    private Double providerNormalizedScore;
 }

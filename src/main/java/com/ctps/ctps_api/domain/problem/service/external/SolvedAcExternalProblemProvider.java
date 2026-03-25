@@ -47,6 +47,8 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                     .limit(12)
                     .map(item -> ExternalProblemSearchItemResponse.builder()
                             .id("solvedac-" + item.getProblemId())
+                            .providerKey(providerKey())
+                            .providerLabel(providerLabel())
                             .title(item.getTitleKo())
                             .platform("백준")
                             .problemNumber(String.valueOf(item.getProblemId()))
@@ -57,6 +59,7 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                                     .map(names -> names.get(0))
                                     .toList())
                             .externalUrl("https://www.acmicpc.net/problem/" + item.getProblemId())
+                            .summary("solved.ac 검색 결과를 기반으로 매핑한 백준 문제")
                             .recommendationReason("solved.ac 기반으로 찾은 백준 추천 문제")
                             .solved(false)
                             .build())
@@ -65,6 +68,16 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
             log.warn("solved.ac provider failed", exception);
             throw new IllegalStateException("solved.ac provider failed", exception);
         }
+    }
+
+    @Override
+    public String providerKey() {
+        return "solvedac";
+    }
+
+    @Override
+    public String providerLabel() {
+        return "solved.ac";
     }
 
     private String buildQuery(ProblemSearchRequest request) {

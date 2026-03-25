@@ -27,6 +27,21 @@ public class ProblemSearchRequest {
     @Max(100)
     private Integer size = 10;
 
+    public ProblemSearchRequest copyWithPageAndSize(int nextPage, int nextSize) {
+        ProblemSearchRequest copied = new ProblemSearchRequest();
+        copied.keyword = this.keyword;
+        copied.platform = this.platform;
+        copied.difficulty = this.difficulty;
+        copied.tags = this.tags;
+        copied.result = this.result;
+        copied.needsReview = this.needsReview;
+        copied.bookmarked = this.bookmarked;
+        copied.sort = this.sort;
+        copied.page = nextPage;
+        copied.size = nextSize;
+        return copied;
+    }
+
     public Pageable toPageable() {
         return PageRequest.of(page, size);
     }
