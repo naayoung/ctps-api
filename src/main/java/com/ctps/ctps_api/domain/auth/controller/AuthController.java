@@ -2,7 +2,10 @@ package com.ctps.ctps_api.domain.auth.controller;
 
 import com.ctps.ctps_api.domain.auth.dto.AuthRequest;
 import com.ctps.ctps_api.domain.auth.dto.AuthResponse;
+import com.ctps.ctps_api.domain.auth.entity.OAuthProvider;
 import com.ctps.ctps_api.domain.auth.service.AuthService;
+import com.ctps.ctps_api.domain.auth.service.OAuthAuthenticationException;
+import com.ctps.ctps_api.domain.auth.service.OAuthService;
 import com.ctps.ctps_api.global.response.ApiResponse;
 import com.ctps.ctps_api.global.security.ClientRequestResolver;
 import com.ctps.ctps_api.global.security.InMemoryRateLimitService;
@@ -15,8 +18,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -25,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final OAuthService oAuthService;
     private final InMemoryRateLimitService rateLimitService;
     private final ClientRequestResolver clientRequestResolver;
 
@@ -70,5 +76,57 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
         authService.logout(request, response);
         return ResponseEntity.ok(ApiResponse.success("로그아웃 성공"));
+    }
+
+    @GetMapping("/oauth/{provider}/start")
+    public ResponseEntity<Void> startOAuthLogin(
+            @PathVariable String provider,
+            @RequestParam(required = false) String redirect,
+            HttpServletResponse response
+    ) {
+        String redirectUrl;
+        try {
+            redirectUrl = oAuthService.prepareAuthorizationRedirect(OAuthProvider.from(provider), redirect, response);
+        } catch (IllegalArgumentException | OAuthAuthenticationException exception) {
+            redirectUrl = oAuthService.buildFrontendRedirect("error", redirect, exception.getMessage());
+        }
+
+        return ResponseEntity.status(302)
+                .header("Location", redirectUrl)
+                .build();
+    }
+
+    @GetMapping("/oauth/{provider}/callback")
+    public ResponseEntity<Void> handleOAuthCallback(
+            @PathVariable String provider,
+            @RequestParam(required = false) String code,
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) String error,
+            @RequestParam(name = "error_description", required = false) String errorDescription,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) {
+        String redirectUrl;
+        String requestedRedirect = oAuthService.extractRedirectTarget(request);
+
+        try {
+            OAuthProvider resolvedProvider = OAuthProvider.from(provider);
+
+            if (error != null) {
+                String status = "access_denied".equalsIgnoreCase(error) ? "cancelled" : "error";
+                String message = errorDescription != null ? errorDescription : "소셜 로그인 인증이 완료되지 않았습니다.";
+                redirectUrl = oAuthService.buildFrontendRedirect(status, requestedRedirect, message);
+            } else if (code == null || code.isBlank()) {
+                redirectUrl = oAuthService.buildFrontendRedirect("error", requestedRedirect, "OAuth 인증 코드가 전달되지 않았습니다.");
+            } else {
+                redirectUrl = oAuthService.handleCallbackSuccess(resolvedProvider, code, state, request, response);
+            }
+        } catch (IllegalArgumentException | OAuthAuthenticationException exception) {
+            redirectUrl = oAuthService.buildFrontendRedirect("error", requestedRedirect, exception.getMessage());
+        }
+
+        return ResponseEntity.status(302)
+                .header("Location", redirectUrl)
+                .build();
     }
 }

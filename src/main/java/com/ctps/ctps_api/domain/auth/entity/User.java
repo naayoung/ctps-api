@@ -31,14 +31,41 @@ public class User {
     @Column(nullable = false, length = 100)
     private String displayName;
 
+    @Column(unique = true, length = 255)
+    private String email;
+
+    @Column(length = 1000)
+    private String profileImageUrl;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public User(String username, String passwordHash, String displayName, LocalDateTime createdAt) {
+    public User(
+            String username,
+            String passwordHash,
+            String displayName,
+            String email,
+            String profileImageUrl,
+            LocalDateTime createdAt
+    ) {
         this.username = username;
         this.passwordHash = passwordHash;
         this.displayName = displayName;
+        this.email = email;
+        this.profileImageUrl = profileImageUrl;
         this.createdAt = createdAt;
+    }
+
+    public void updateProfile(String displayName, String email, String profileImageUrl) {
+        if (displayName != null && !displayName.isBlank()) {
+            this.displayName = displayName;
+        }
+        if (email != null && !email.isBlank()) {
+            this.email = email;
+        }
+        if (profileImageUrl != null && !profileImageUrl.isBlank()) {
+            this.profileImageUrl = profileImageUrl;
+        }
     }
 }

@@ -11,12 +11,16 @@ public class AuthResponse {
     private String id;
     private String username;
     private String displayName;
+    private String email;
+    private String profileImageUrl;
 
     public static AuthResponse from(User user) {
         return AuthResponse.builder()
                 .id(String.valueOf(user.getId()))
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
+                .email(user.getEmail())
+                .profileImageUrl(user.getProfileImageUrl())
                 .build();
     }
 }

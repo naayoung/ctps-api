@@ -34,6 +34,8 @@ Do a one-time deploy with:
 
 Because the production database is already non-empty, Flyway will create `flyway_schema_history`, register version `1`, and skip executing `V1__init.sql`.
 
+If there are migrations after `V1` in the repository, Flyway will continue applying them in the same run. For example, the current repository includes `V2__add_oauth_accounts.sql`, so the one-time baseline deploy will baseline the existing schema at `1` and then apply `V2`.
+
 ### 3. Enable Flyway for normal app startup
 
 After the baseline metadata exists, switch to:
