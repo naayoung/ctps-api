@@ -15,6 +15,8 @@ public class ExternalProblemSearchResponse {
     private long totalElements;
     private int totalPages;
     private boolean hasNext;
+    private List<String> failedProviders;
+    private String warningMessage;
 
     public static ExternalProblemSearchResponse from(Page<ExternalProblemSearchItemResponse> page) {
         return ExternalProblemSearchResponse.builder()
@@ -24,6 +26,7 @@ public class ExternalProblemSearchResponse {
                 .totalElements(page.getTotalElements())
                 .totalPages(page.getTotalPages())
                 .hasNext(page.hasNext())
+                .failedProviders(List.of())
                 .build();
     }
 }

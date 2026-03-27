@@ -14,12 +14,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class ExternalProblemCacheService {
 
     private final ExternalProblemCacheRepository cacheRepository;
@@ -28,6 +28,7 @@ public class ExternalProblemCacheService {
     @Value("${external.search.cache.ttl-minutes:180}")
     private long cacheTtlMinutes;
 
+    @Transactional(readOnly = true)
     public CachedExternalProblemResult findValidCache(String provider, String queryKey) {
         String queryHash = hash(queryKey);
         return cacheRepository.findByProviderAndQueryHash(provider, queryHash)
@@ -36,7 +37,7 @@ public class ExternalProblemCacheService {
                 .orElse(null);
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void save(
             String provider,
             String queryKey,

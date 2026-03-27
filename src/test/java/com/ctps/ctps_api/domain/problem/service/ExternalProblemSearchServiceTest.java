@@ -124,6 +124,8 @@ class ExternalProblemSearchServiceTest {
         ExternalProblemSearchResponse response = service.search(request);
 
         assertThat(response.getContent()).isEmpty();
+        assertThat(response.getFailedProviders()).containsExactly(providerA.getClass().getSimpleName());
+        assertThat(response.getWarningMessage()).isNotBlank();
         then(metricsService).should().recordProviderFailure(providerA.getClass().getSimpleName());
         then(cacheService).should(atLeastOnce()).save(anyString(), anyString(), anyList(), anyLong(), anyInt());
     }

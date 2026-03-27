@@ -9,6 +9,7 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
 import com.ctps.ctps_api.domain.review.entity.Review;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
+import com.ctps.ctps_api.domain.search.service.SearchActivityService;
 import com.ctps.ctps_api.global.exception.NotFoundException;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ public class ProblemService {
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private final SearchActivityService searchActivityService;
 
     @Transactional
     public ProblemResponse createProblem(ProblemCreateRequest request) {
@@ -51,6 +53,12 @@ public class ProblemService {
 
         Problem saved = problemRepository.save(problem);
         syncReviewState(saved);
+        if (saved.isBookmarked()) {
+            searchActivityService.recordBookmarkEvent(saved);
+        }
+        if (saved.isNeedsReview()) {
+            searchActivityService.recordMarkReviewEvent(saved);
+        }
         return ProblemResponse.from(saved);
     }
 
@@ -66,6 +74,8 @@ public class ProblemService {
     @Transactional
     public ProblemResponse updateProblem(Long id, ProblemUpdateRequest request) {
         Problem problem = findById(id);
+        boolean wasBookmarked = problem.isBookmarked();
+        boolean neededReview = problem.isNeedsReview();
         problem.patch(
                 request.getPlatform(),
                 request.getTitle(),
@@ -86,6 +96,12 @@ public class ProblemService {
             problem.markReviewRequired();
         }
         syncReviewState(problem);
+        if (!wasBookmarked && problem.isBookmarked()) {
+            searchActivityService.recordBookmarkEvent(problem);
+        }
+        if (!neededReview && problem.isNeedsReview()) {
+            searchActivityService.recordMarkReviewEvent(problem);
+        }
         return ProblemResponse.from(problem);
     }
 

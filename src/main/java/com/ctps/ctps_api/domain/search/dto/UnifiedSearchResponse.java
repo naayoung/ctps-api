@@ -17,5 +17,7 @@ public class UnifiedSearchResponse {
     private boolean hasNext;
     private int internalCount;
     private int externalCount;
+    private List<String> failedExternalProviders;
+    private String externalWarning;
     private List<UnifiedSearchItemResponse> items;
 }

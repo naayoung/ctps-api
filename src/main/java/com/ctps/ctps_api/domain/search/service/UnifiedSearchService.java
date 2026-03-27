@@ -39,11 +39,12 @@ public class UnifiedSearchService {
         externalResponse.getContent().stream().map(responseMapper::fromExternal).forEach(candidates::add);
 
         List<UnifiedSearchRankingResult> ranked = rankingService.rank(candidates, processedQuery, request.getSortOption());
+        List<UnifiedSearchItemResponse> orderedItems = orderPageCandidates(ranked, request);
         int start = request.getPage() * request.getSize();
-        int end = Math.min(start + request.getSize(), ranked.size());
-        List<UnifiedSearchItemResponse> pageItems = start >= ranked.size()
+        int end = Math.min(start + request.getSize(), orderedItems.size());
+        List<UnifiedSearchItemResponse> pageItems = start >= orderedItems.size()
                 ? List.of()
-                : ranked.subList(start, end).stream().map(UnifiedSearchRankingResult::getItem).toList();
+                : orderedItems.subList(start, end);
 
         long totalElements = internalResponse.getTotalElements() + externalResponse.getTotalElements();
         int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / request.getSize());
@@ -58,7 +59,56 @@ public class UnifiedSearchService {
                 .hasNext((long) (request.getPage() + 1) * request.getSize() < totalElements)
                 .internalCount((int) Math.min(Integer.MAX_VALUE, internalResponse.getTotalElements()))
                 .externalCount((int) Math.min(Integer.MAX_VALUE, externalResponse.getTotalElements()))
+                .failedExternalProviders(externalResponse.getFailedProviders())
+                .externalWarning(externalResponse.getWarningMessage())
                 .items(pageItems)
                 .build();
+    }
+
+    private List<UnifiedSearchItemResponse> orderPageCandidates(
+            List<UnifiedSearchRankingResult> ranked,
+            ProblemSearchRequest request
+    ) {
+        if (request.getSortOption() != com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption.RELEVANCE) {
+            return ranked.stream().map(UnifiedSearchRankingResult::getItem).toList();
+        }
+
+        List<UnifiedSearchItemResponse> internalItems = ranked.stream()
+                .map(UnifiedSearchRankingResult::getItem)
+                .filter(item -> item.getSource() == com.ctps.ctps_api.domain.search.dto.SearchItemSource.INTERNAL)
+                .toList();
+        List<UnifiedSearchItemResponse> externalItems = ranked.stream()
+                .map(UnifiedSearchRankingResult::getItem)
+                .filter(item -> item.getSource() == com.ctps.ctps_api.domain.search.dto.SearchItemSource.EXTERNAL)
+                .toList();
+
+        if (internalItems.isEmpty() || externalItems.isEmpty()) {
+            return ranked.stream().map(UnifiedSearchRankingResult::getItem).toList();
+        }
+
+        List<UnifiedSearchItemResponse> merged = new ArrayList<>(ranked.size());
+        int internalIndex = 0;
+        int externalIndex = 0;
+
+        while (internalIndex < internalItems.size() || externalIndex < externalItems.size()) {
+            for (int count = 0; count < 2 && internalIndex < internalItems.size(); count++) {
+                merged.add(internalItems.get(internalIndex++));
+            }
+            if (externalIndex < externalItems.size()) {
+                merged.add(externalItems.get(externalIndex++));
+            }
+            if (internalIndex >= internalItems.size()) {
+                while (externalIndex < externalItems.size()) {
+                    merged.add(externalItems.get(externalIndex++));
+                }
+            }
+            if (externalIndex >= externalItems.size()) {
+                while (internalIndex < internalItems.size()) {
+                    merged.add(internalItems.get(internalIndex++));
+                }
+            }
+        }
+
+        return merged;
     }
 }

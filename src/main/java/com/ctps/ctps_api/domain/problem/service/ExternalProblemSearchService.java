@@ -42,24 +42,29 @@ public class ExternalProblemSearchService {
     public ExternalProblemSearchResponse search(ProblemSearchRequest request) {
         Pageable pageable = request.toPageable();
         ProcessedSearchQuery processedQuery = searchQueryPreprocessor.process(request);
-        List<ProviderScoredExternalProblem> fetchedItems = fetchProviderResults(request, processedQuery);
-        List<ProviderScoredExternalProblem> rankedItems = deduplicateAndScore(fetchedItems, processedQuery);
+        ExternalFetchOutcome fetchOutcome = fetchProviderResults(request, processedQuery);
+        List<ProviderScoredExternalProblem> rankedItems = deduplicateAndScore(fetchOutcome.items(), processedQuery);
         List<ProviderScoredExternalProblem> sortedItems = sortResults(rankedItems);
-        return toPageResponse(sortedItems, pageable);
+        return toPageResponse(sortedItems, pageable, fetchOutcome.failedProviders());
     }
 
-    private List<ProviderScoredExternalProblem> fetchProviderResults(
+    private ExternalFetchOutcome fetchProviderResults(
             ProblemSearchRequest request,
             ProcessedSearchQuery processedQuery
     ) {
         List<ProviderScoredExternalProblem> merged = new java.util.ArrayList<>();
+        List<String> failedProviders = new java.util.ArrayList<>();
         for (ExternalProblemProvider provider : providers) {
-            merged.addAll(getCachedOrSearch(provider, request, processedQuery));
+            ProviderFetchResult result = getCachedOrSearch(provider, request, processedQuery);
+            merged.addAll(result.items());
+            if (result.failedProvider() != null) {
+                failedProviders.add(result.failedProvider());
+            }
         }
-        return merged;
+        return new ExternalFetchOutcome(List.copyOf(merged), List.copyOf(failedProviders));
     }
 
-    private List<ProviderScoredExternalProblem> getCachedOrSearch(
+    private ProviderFetchResult getCachedOrSearch(
             ExternalProblemProvider provider,
             ProblemSearchRequest request,
             ProcessedSearchQuery processedQuery
@@ -70,7 +75,10 @@ public class ExternalProblemSearchService {
 
         if (cached != null) {
             metricsService.recordCacheHit();
-            return attachProviderSignals(provider, cached.items(), processedQuery);
+            return new ProviderFetchResult(
+                    attachProviderSignals(provider, cached.items(), processedQuery),
+                    null
+            );
         }
 
         metricsService.recordCacheMiss();
@@ -78,7 +86,10 @@ public class ExternalProblemSearchService {
             List<ExternalProblemSearchItemResponse> providerItems = provider.search(request);
             cacheService.save(providerName, queryKey, providerItems, providerItems.size(), providerItems.isEmpty() ? 0 : 1);
             metricsService.recordProviderSuccess(providerName);
-            return attachProviderSignals(provider, providerItems, processedQuery);
+            return new ProviderFetchResult(
+                    attachProviderSignals(provider, providerItems, processedQuery),
+                    null
+            );
         } catch (Exception exception) {
             metricsService.recordProviderFailure(providerName);
             log.warn(
@@ -88,7 +99,7 @@ public class ExternalProblemSearchService {
                     exception.getMessage(),
                     exception
             );
-            return List.of();
+            return new ProviderFetchResult(List.of(), resolveProviderLabel(provider, providerName));
         }
     }
 
@@ -174,7 +185,8 @@ public class ExternalProblemSearchService {
 
     private ExternalProblemSearchResponse toPageResponse(
             List<ProviderScoredExternalProblem> items,
-            Pageable pageable
+            Pageable pageable,
+            List<String> failedProviders
     ) {
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), items.size());
@@ -182,7 +194,16 @@ public class ExternalProblemSearchService {
                 start >= items.size() ? List.of() : items.subList(start, end).stream().map(ProviderScoredExternalProblem::getItem).toList();
 
         Page<ExternalProblemSearchItemResponse> page = new PageImpl<>(pageContent, pageable, items.size());
-        return ExternalProblemSearchResponse.from(page);
+        return ExternalProblemSearchResponse.builder()
+                .content(page.getContent())
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .hasNext(page.hasNext())
+                .failedProviders(failedProviders)
+                .warningMessage(buildWarningMessage(failedProviders))
+                .build();
     }
 
     private ProviderScoredExternalProblem applyScore(
@@ -246,5 +267,24 @@ public class ExternalProblemSearchService {
 
     private String safeLower(String value) {
         return value == null ? "" : value.toLowerCase(Locale.ROOT);
+    }
+
+    private String buildWarningMessage(List<String> failedProviders) {
+        if (failedProviders.isEmpty()) {
+            return null;
+        }
+        return "일부 외부 검색 제공자 응답이 지연되거나 실패해 결과가 일부만 표시될 수 있습니다.";
+    }
+
+    private record ProviderFetchResult(
+            List<ProviderScoredExternalProblem> items,
+            String failedProvider
+    ) {
+    }
+
+    private record ExternalFetchOutcome(
+            List<ProviderScoredExternalProblem> items,
+            List<String> failedProviders
+    ) {
     }
 }

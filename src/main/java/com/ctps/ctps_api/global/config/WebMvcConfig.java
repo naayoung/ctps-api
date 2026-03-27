@@ -42,18 +42,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",
-                        "/api/health",
-                        "/api/search",
-                        "/api/external-problems/search"
+                        "/api/health"
                 );
 
         registry.addInterceptor(csrfProtectionInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(
                         "/api/auth/login",
-                        "/api/health",
-                        "/api/search",
-                        "/api/external-problems/search"
+                        "/api/health"
                 );
 
         registry.addInterceptor(adminAuthenticationInterceptor)
