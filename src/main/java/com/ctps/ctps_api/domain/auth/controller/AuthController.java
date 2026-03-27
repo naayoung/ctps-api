@@ -3,7 +3,12 @@ package com.ctps.ctps_api.domain.auth.controller;
 import com.ctps.ctps_api.domain.auth.dto.AccountDeleteRequest;
 import com.ctps.ctps_api.domain.auth.dto.AuthRequest;
 import com.ctps.ctps_api.domain.auth.dto.AuthResponse;
+import com.ctps.ctps_api.domain.auth.dto.FindUsernameRequest;
+import com.ctps.ctps_api.domain.auth.dto.FindUsernameResponse;
 import com.ctps.ctps_api.domain.auth.dto.PasswordChangeRequest;
+import com.ctps.ctps_api.domain.auth.dto.PasswordResetConfirmRequest;
+import com.ctps.ctps_api.domain.auth.dto.PasswordResetRequest;
+import com.ctps.ctps_api.domain.auth.dto.PasswordResetRequestResponse;
 import com.ctps.ctps_api.domain.auth.dto.SignUpRequest;
 import com.ctps.ctps_api.domain.auth.entity.OAuthProvider;
 import com.ctps.ctps_api.domain.auth.service.AuthService;
@@ -43,6 +48,24 @@ public class AuthController {
     @Value("${security.rate-limit.login.window-seconds:300}")
     private long loginWindowSeconds;
 
+    @Value("${security.rate-limit.username-recovery.max-attempts:5}")
+    private int usernameRecoveryMaxAttempts;
+
+    @Value("${security.rate-limit.username-recovery.window-seconds:600}")
+    private long usernameRecoveryWindowSeconds;
+
+    @Value("${security.rate-limit.password-reset-request.max-attempts:5}")
+    private int passwordResetRequestMaxAttempts;
+
+    @Value("${security.rate-limit.password-reset-request.window-seconds:600}")
+    private long passwordResetRequestWindowSeconds;
+
+    @Value("${security.rate-limit.password-reset-confirm.max-attempts:10}")
+    private int passwordResetConfirmMaxAttempts;
+
+    @Value("${security.rate-limit.password-reset-confirm.window-seconds:600}")
+    private long passwordResetConfirmWindowSeconds;
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody AuthRequest request,
@@ -70,6 +93,28 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("회원가입이 완료되었습니다.", authResponse));
     }
 
+    @PostMapping("/username/recovery")
+    public ResponseEntity<ApiResponse<FindUsernameResponse>> recoverUsername(
+            @Valid @RequestBody FindUsernameRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+        String clientKey = clientRequestResolver.resolveClientKey(httpServletRequest);
+        String rateLimitKey = "username-recovery:" + clientKey + ":" + request.getEmail().trim().toLowerCase();
+        rateLimitService.check(
+                rateLimitKey,
+                usernameRecoveryMaxAttempts,
+                Duration.ofSeconds(usernameRecoveryWindowSeconds),
+                "아이디 찾기 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+        );
+        FindUsernameResponse result = authService.findUsername(request);
+        String message = switch (result.getStatus()) {
+            case "FOUND" -> "입력한 정보와 일치하는 아이디를 확인했어요.";
+            case "SOCIAL_ACCOUNT" -> "이 계정은 소셜 로그인 계정입니다. 해당 서비스에서 로그인해 주세요.";
+            default -> "입력한 정보와 일치하는 일반 계정을 찾지 못했습니다.";
+        };
+        return ResponseEntity.ok(ApiResponse.success(message, result));
+    }
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<AuthResponse>> me() {
         return ResponseEntity.ok(ApiResponse.success("현재 사용자 조회 성공", authService.me()));
@@ -94,6 +139,45 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> changePassword(@Valid @RequestBody PasswordChangeRequest request) {
         AuthResponse authResponse = authService.changePassword(request);
         return ResponseEntity.ok(ApiResponse.success("비밀번호가 변경되었습니다.", authResponse));
+    }
+
+    @PostMapping("/password/reset/request")
+    public ResponseEntity<ApiResponse<PasswordResetRequestResponse>> requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+        String clientKey = clientRequestResolver.resolveClientKey(httpServletRequest);
+        String rateLimitKey = "password-reset-request:" + clientKey + ":" + request.getEmail().trim().toLowerCase();
+        rateLimitService.check(
+                rateLimitKey,
+                passwordResetRequestMaxAttempts,
+                Duration.ofSeconds(passwordResetRequestWindowSeconds),
+                "비밀번호 재설정 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+        );
+        PasswordResetRequestResponse result = authService.requestPasswordReset(request, clientKey);
+        String message = switch (result.getStatus()) {
+            case "TOKEN_ISSUED" -> "입력한 정보가 일반 계정과 일치하면 비밀번호 재설정 안내를 진행합니다.";
+            case "SOCIAL_ACCOUNT" -> "이 계정은 소셜 로그인 계정입니다. 해당 서비스에서 로그인해 주세요.";
+            default -> "입력한 정보가 일반 계정과 일치하면 비밀번호 재설정 안내를 진행합니다.";
+        };
+        return ResponseEntity.ok(ApiResponse.success(message, result));
+    }
+
+    @PostMapping("/password/reset/confirm")
+    public ResponseEntity<ApiResponse<Void>> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request,
+            HttpServletRequest httpServletRequest
+    ) {
+        String clientKey = clientRequestResolver.resolveClientKey(httpServletRequest);
+        String rateLimitKey = "password-reset-confirm:" + clientKey;
+        rateLimitService.check(
+                rateLimitKey,
+                passwordResetConfirmMaxAttempts,
+                Duration.ofSeconds(passwordResetConfirmWindowSeconds),
+                "비밀번호 재설정 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+        );
+        authService.confirmPasswordReset(request);
+        return ResponseEntity.ok(ApiResponse.success("비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해 주세요."));
     }
 
     @PostMapping("/withdraw")
