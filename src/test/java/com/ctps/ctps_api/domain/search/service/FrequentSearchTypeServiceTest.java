@@ -3,6 +3,7 @@ package com.ctps.ctps_api.domain.search.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.ctps.ctps_api.domain.auth.entity.AuthProvider;
 import com.ctps.ctps_api.domain.auth.entity.User;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.search.dto.FrequentSearchTypeItemResponse;
@@ -133,6 +134,8 @@ class FrequentSearchTypeServiceTest {
                         .passwordHash("hash")
                         .displayName("테스터")
                         .createdAt(createdAt.minusDays(1))
+                        .updatedAt(createdAt.minusDays(1))
+                        .primaryAuthProvider(AuthProvider.LOCAL)
                         .build())
                 .problemRef(problemRef)
                 .source(SearchItemSource.INTERNAL)
@@ -152,6 +155,8 @@ class FrequentSearchTypeServiceTest {
                         .passwordHash("hash")
                         .displayName("테스터")
                         .createdAt(createdAt.minusDays(1))
+                        .updatedAt(createdAt.minusDays(1))
+                        .primaryAuthProvider(AuthProvider.LOCAL)
                         .build())
                 .query(query)
                 .createdAt(createdAt)

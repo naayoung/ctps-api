@@ -2,6 +2,8 @@ package com.ctps.ctps_api.domain.auth.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -37,8 +39,20 @@ public class User {
     @Column(length = 1000)
     private String profileImageUrl;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private AuthProvider primaryAuthProvider;
+
+    @Column(length = 255)
+    private String primaryProviderUserId;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime deletedAt;
 
     @Builder
     public User(
@@ -47,7 +61,11 @@ public class User {
             String displayName,
             String email,
             String profileImageUrl,
-            LocalDateTime createdAt
+            AuthProvider primaryAuthProvider,
+            String primaryProviderUserId,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt,
+            LocalDateTime deletedAt
     ) {
         this.username = username;
         this.passwordHash = passwordHash;
@@ -55,6 +73,10 @@ public class User {
         this.email = email;
         this.profileImageUrl = profileImageUrl;
         this.createdAt = createdAt;
+        this.primaryAuthProvider = primaryAuthProvider;
+        this.primaryProviderUserId = primaryProviderUserId;
+        this.updatedAt = updatedAt;
+        this.deletedAt = deletedAt;
     }
 
     public void updateProfile(String displayName, String email, String profileImageUrl) {
@@ -67,5 +89,48 @@ public class User {
         if (profileImageUrl != null && !profileImageUrl.isBlank()) {
             this.profileImageUrl = profileImageUrl;
         }
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateProfile(String displayName, String email, String profileImageUrl, LocalDateTime now) {
+        if (displayName != null && !displayName.isBlank()) {
+            this.displayName = displayName;
+        }
+        if (email != null && !email.isBlank()) {
+            this.email = email;
+        }
+        if (profileImageUrl != null && !profileImageUrl.isBlank()) {
+            this.profileImageUrl = profileImageUrl;
+        }
+        this.updatedAt = now;
+    }
+
+    public void updatePassword(String passwordHash, LocalDateTime now) {
+        this.passwordHash = passwordHash;
+        this.updatedAt = now;
+    }
+
+    public void markDeleted(String anonymizedUsername, String anonymizedEmail, LocalDateTime now) {
+        this.username = anonymizedUsername;
+        this.email = anonymizedEmail;
+        this.displayName = "탈퇴한 사용자";
+        this.profileImageUrl = null;
+        this.primaryProviderUserId = null;
+        this.deletedAt = now;
+        this.updatedAt = now;
+    }
+
+    public void syncPrimaryAuth(AuthProvider authProvider, String providerUserId, LocalDateTime now) {
+        this.primaryAuthProvider = authProvider;
+        this.primaryProviderUserId = providerUserId;
+        this.updatedAt = now;
+    }
+
+    public boolean isDeleted() {
+        return deletedAt != null;
+    }
+
+    public boolean canUsePasswordAuth() {
+        return primaryAuthProvider == AuthProvider.LOCAL;
     }
 }

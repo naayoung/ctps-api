@@ -1,0 +1,8 @@
+ALTER TABLE users ADD COLUMN primary_auth_provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL';
+ALTER TABLE users ADD COLUMN primary_provider_user_id VARCHAR(255);
+ALTER TABLE users ADD COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE users ADD COLUMN deleted_at TIMESTAMP;
+
+UPDATE users
+SET updated_at = created_at
+WHERE updated_at IS NULL;

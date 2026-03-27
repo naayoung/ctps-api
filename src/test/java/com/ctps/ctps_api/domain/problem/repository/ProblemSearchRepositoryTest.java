@@ -2,6 +2,7 @@ package com.ctps.ctps_api.domain.problem.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.ctps.ctps_api.domain.auth.entity.AuthProvider;
 import com.ctps.ctps_api.domain.auth.entity.User;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
@@ -144,6 +145,8 @@ class ProblemSearchRepositoryTest {
                 .passwordHash("hashed-password")
                 .displayName("테스터")
                 .createdAt(LocalDateTime.of(2026, 3, 1, 0, 0))
+                .updatedAt(LocalDateTime.of(2026, 3, 1, 0, 0))
+                .primaryAuthProvider(AuthProvider.LOCAL)
                 .build());
     }
 

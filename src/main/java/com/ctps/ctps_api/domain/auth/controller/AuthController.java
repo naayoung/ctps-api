@@ -1,7 +1,10 @@
 package com.ctps.ctps_api.domain.auth.controller;
 
+import com.ctps.ctps_api.domain.auth.dto.AccountDeleteRequest;
 import com.ctps.ctps_api.domain.auth.dto.AuthRequest;
 import com.ctps.ctps_api.domain.auth.dto.AuthResponse;
+import com.ctps.ctps_api.domain.auth.dto.PasswordChangeRequest;
+import com.ctps.ctps_api.domain.auth.dto.SignUpRequest;
 import com.ctps.ctps_api.domain.auth.entity.OAuthProvider;
 import com.ctps.ctps_api.domain.auth.service.AuthService;
 import com.ctps.ctps_api.domain.auth.service.OAuthAuthenticationException;
@@ -47,15 +50,24 @@ public class AuthController {
             HttpServletResponse response
     ) {
         String clientKey = clientRequestResolver.resolveClientKey(httpServletRequest);
-        String rateLimitKey = "login:" + clientKey + ":" + request.getUsername().trim().toLowerCase();
+        String rateLimitKey = "login:" + clientKey + ":" + request.getEmail().trim().toLowerCase();
         rateLimitService.check(
                 rateLimitKey,
                 loginMaxAttempts,
                 Duration.ofSeconds(loginWindowSeconds),
                 "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
         );
-        AuthResponse authResponse = authService.login(request.getUsername(), request.getPassword(), response);
+        AuthResponse authResponse = authService.login(request.getEmail(), request.getPassword(), response);
         return ResponseEntity.ok(ApiResponse.success("로그인 성공", authResponse));
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<ApiResponse<AuthResponse>> signup(
+            @Valid @RequestBody SignUpRequest request,
+            HttpServletResponse response
+    ) {
+        AuthResponse authResponse = authService.register(request, response);
+        return ResponseEntity.ok(ApiResponse.success("회원가입이 완료되었습니다.", authResponse));
     }
 
     @GetMapping("/me")
@@ -76,6 +88,22 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
         authService.logout(request, response);
         return ResponseEntity.ok(ApiResponse.success("로그아웃 성공"));
+    }
+
+    @PostMapping("/password")
+    public ResponseEntity<ApiResponse<AuthResponse>> changePassword(@Valid @RequestBody PasswordChangeRequest request) {
+        AuthResponse authResponse = authService.changePassword(request);
+        return ResponseEntity.ok(ApiResponse.success("비밀번호가 변경되었습니다.", authResponse));
+    }
+
+    @PostMapping("/withdraw")
+    public ResponseEntity<ApiResponse<Void>> withdraw(
+            @RequestBody AccountDeleteRequest request,
+            HttpServletRequest httpServletRequest,
+            HttpServletResponse response
+    ) {
+        authService.withdraw(request, httpServletRequest, response);
+        return ResponseEntity.ok(ApiResponse.success("회원 탈퇴가 완료되었습니다."));
     }
 
     @GetMapping("/oauth/{provider}/start")
