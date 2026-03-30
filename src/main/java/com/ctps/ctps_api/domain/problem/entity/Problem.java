@@ -173,6 +173,10 @@ public class Problem {
         this.needsReview = true;
     }
 
+    public void removeFromReviewQueue() {
+        this.needsReview = false;
+    }
+
     public void markReviewCompleted(LocalDate reviewedDate) {
         this.needsReview = false;
         this.reviewedAt = reviewedDate;

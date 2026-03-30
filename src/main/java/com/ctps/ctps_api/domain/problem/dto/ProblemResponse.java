@@ -40,7 +40,7 @@ public class ProblemResponse {
                 .difficulty(problem.getDifficulty())
                 .memo(problem.getMemo())
                 .result(problem.getResult())
-                .needsReview(problem.isNeedsReview())
+                .needsReview(problem.isNeedsReview() && !problem.isBookmarked())
                 .reviewedAt(problem.getReviewedAt())
                 .reviewHistory(problem.getReviewHistory() == null ? List.of() : new ArrayList<>(problem.getReviewHistory()))
                 .createdAt(problem.getCreatedAt())

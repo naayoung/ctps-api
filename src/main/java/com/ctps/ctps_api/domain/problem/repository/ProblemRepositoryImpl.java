@@ -146,6 +146,9 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
 
         if (request.getNeedsReview() != null) {
             predicates.add(cb.equal(root.get("needsReview"), request.getNeedsReview()));
+            if (Boolean.TRUE.equals(request.getNeedsReview())) {
+                predicates.add(cb.isFalse(root.get("bookmarked")));
+            }
         }
 
         if (request.getBookmarked() != null) {

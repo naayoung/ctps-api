@@ -77,7 +77,7 @@ public class ReviewService {
         Long userId = CurrentUserContext.getRequired().getId();
 
         return reviewRepository.findAllByProblemUserIdAndNextReviewDateLessThanEqual(userId, targetDate).stream()
-                .filter(review -> review.getProblem().isNeedsReview())
+                .filter(review -> review.getProblem().isNeedsReview() && !review.getProblem().isBookmarked())
                 .map(review -> TodayReviewResponse.builder()
                         .reviewId(review.getId())
                         .problemId(review.getProblem().getId())

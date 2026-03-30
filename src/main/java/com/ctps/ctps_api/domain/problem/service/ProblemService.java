@@ -50,6 +50,9 @@ public class ProblemService {
                 .lastSolvedAt(request.getLastSolvedAt())
                 .bookmarked(request.isBookmarked())
                 .build();
+        if (problem.isBookmarked()) {
+            problem.removeFromReviewQueue();
+        }
 
         Problem saved = problemRepository.save(problem);
         syncReviewState(saved);
@@ -95,6 +98,9 @@ public class ProblemService {
         if (Boolean.TRUE.equals(request.getNeedsReview())) {
             problem.markReviewRequired();
         }
+        if (problem.isBookmarked()) {
+            problem.removeFromReviewQueue();
+        }
         syncReviewState(problem);
         if (!wasBookmarked && problem.isBookmarked()) {
             searchActivityService.recordBookmarkEvent(problem);
@@ -128,7 +134,7 @@ public class ProblemService {
     }
 
     private void syncReviewState(Problem problem) {
-        if (!problem.isNeedsReview()) {
+        if (!problem.isNeedsReview() || problem.isBookmarked()) {
             return;
         }
 
