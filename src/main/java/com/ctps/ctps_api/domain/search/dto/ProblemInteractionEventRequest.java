@@ -3,7 +3,6 @@ package com.ctps.ctps_api.domain.search.dto;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.search.entity.ProblemInteractionEvent;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import lombok.Getter;
@@ -26,7 +25,7 @@ public class ProblemInteractionEventRequest {
     @NotNull
     private Problem.Difficulty difficulty;
 
-    @NotEmpty
+    @NotNull
     private List<String> tags;
 
     @NotNull
