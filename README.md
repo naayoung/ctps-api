@@ -88,6 +88,57 @@ set +a
 ./gradlew bootRun
 ```
 
+## 프로그래머스 카탈로그 수집
+
+프로그래머스 외부 검색은 실시간 크롤링이 아니라, 수집 스크립트가 만든 JSON 스냅샷을 `PROGRAMMERS_IMPORT_DIR`에 저장하고 백엔드가 이를 적재하는 방식입니다.
+
+1. `PROGRAMMERS_IMPORT_DIR`, `ADMIN_SECURITY_TOKEN`, `CTPS_PROGRAMMERS_INGEST_URL`를 설정합니다.
+2. `backend/scripts`에서 의존성을 설치합니다.
+3. Playwright 수집 스크립트를 실행합니다.
+
+```bash
+cd backend/scripts
+npm install
+node programmers_catalog_worker.mjs --pages 1 --dry-run
+node programmers_catalog_worker.mjs --pages 3
+node programmers_catalog_worker.mjs --pages 3 --full-refresh
+```
+
+기본 모드는 `incremental`이며, 최신 스냅샷에 이미 있는 `externalId`는 다시 상세 수집하지 않고 신규 문제만 추가합니다. `--full-refresh` 또는 `PROGRAMMERS_CRAWLER_MODE=full-refresh`를 사용하면 전체 재수집으로 동작합니다.
+
+`--dry-run`은 샘플 JSON만 출력하고 파일을 쓰지 않습니다. 일반 실행은 최신 스냅샷 JSON을 생성하고, `CTPS_PROGRAMMERS_INGEST_URL`이 설정돼 있으면 적재 API까지 연달아 호출합니다.
+
+운영에서는 하루 1회 스케줄러에서 아래 명령만 실행하면 됩니다. 주기 변경은 스케줄러 cron만 바꾸면 되고, 동작 방식 변경은 `PROGRAMMERS_CRAWLER_MODE`만 조정하면 됩니다.
+
+```bash
+cd backend/scripts
+npm install
+node programmers_catalog_worker.mjs --pages 3
+```
+
+### GitHub Actions 운영 예시
+
+바로 사용할 수 있는 워크플로우는 [programmers-catalog-sync.yml](/Users/nayoung/workspace/side-project/ctps/backend/.github/workflows/programmers-catalog-sync.yml) 에 추가되어 있습니다.
+
+- 매일 1회: `incremental`
+- 매월 1회: `full-refresh`
+- 필요하면 `workflow_dispatch`로 수동 실행 가능
+
+워크플로우는 수집 결과를 `generated/programmers-catalog/latest.json` 으로 커밋합니다. 배포된 backend에는 아래처럼 GitHub raw URL을 `PROGRAMMERS_FEED_URL` 로 연결하면 됩니다.
+
+```bash
+PROGRAMMERS_FEED_URL=https://raw.githubusercontent.com/<owner>/<repo>/main/generated/programmers-catalog/latest.json
+```
+
+워크플로우에서 바로 적재 API까지 호출하려면 GitHub Actions Secrets에 아래 값을 넣습니다.
+
+```bash
+CTPS_PROGRAMMERS_INGEST_URL=https://<your-backend>/api/admin/external-search/programmers/ingest
+ADMIN_SECURITY_TOKEN=<your-admin-token>
+```
+
+워크플로우 주기를 바꾸고 싶다면 `.github/workflows/programmers-catalog-sync.yml` 의 `schedule.cron` 만 수정하면 됩니다. 수집 모드는 cron과 분리되어 있어서, 일일은 `incremental`, 월간은 `full-refresh` 정책을 쉽게 유지할 수 있습니다.
+
 ## OAuth Provider 콘솔 설정
 
 ### 카카오 개발자센터

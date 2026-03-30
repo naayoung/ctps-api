@@ -12,7 +12,7 @@ import org.springframework.util.StringUtils;
 @Order(10)
 public class LeetCodeProviderScoreResolver implements ExternalProblemProviderScoreResolver {
 
-    private static final String PROVIDER_NAME = "LeetCodeExternalProblemProvider";
+    private static final String PROVIDER_NAME = "leetcode";
 
     @Override
     public boolean supports(String providerName) {

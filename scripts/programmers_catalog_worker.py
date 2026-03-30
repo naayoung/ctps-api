@@ -84,6 +84,15 @@ def normalize_difficulty(raw: Any) -> str:
         return "medium"
 
     text = str(raw).strip().lower()
+    level_match = re.search(r"(?:lv|level|레벨|난이도)\s*\.?\s*(\d)", text)
+    if level_match:
+        level = int(level_match.group(1))
+        if level <= 1:
+            return "easy"
+        if level <= 3:
+            return "medium"
+        return "hard"
+
     if text in {"1", "lv1", "level1", "easy"}:
         return "easy"
     if text in {"2", "3", "lv2", "lv3", "level2", "level3", "medium"}:
@@ -127,18 +136,23 @@ def normalize_tags(raw: Any) -> list[str]:
     if raw is None:
         return []
     if isinstance(raw, str):
-        return [raw.strip()] if raw.strip() else []
+        return [tag for part in re.split(r"[|,>]", raw) for tag in _split_tag_fragment(part)]
     if isinstance(raw, list):
         tags: list[str] = []
         for item in raw:
             if isinstance(item, str) and item.strip():
-                tags.append(item.strip())
+                tags.extend(_split_tag_fragment(item))
             elif isinstance(item, dict):
                 tag = first_present(item, ("name", "label", "title", "value"))
                 if isinstance(tag, str) and tag.strip():
-                    tags.append(tag.strip())
+                    tags.extend(_split_tag_fragment(tag))
         return list(dict.fromkeys(tags))
     return []
+
+
+def _split_tag_fragment(value: str) -> list[str]:
+    tokens = [token.strip() for token in value.split("/") if token.strip()]
+    return list(dict.fromkeys(tokens))
 
 
 def normalize_candidate(candidate: dict[str, Any]) -> CatalogItem | None:

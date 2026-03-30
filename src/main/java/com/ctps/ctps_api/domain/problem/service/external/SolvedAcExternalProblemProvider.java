@@ -4,9 +4,12 @@ import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchItemRe
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemProvider;
+import com.ctps.ctps_api.domain.problem.service.search.SearchIntentAnalyzer;
 import com.ctps.ctps_api.global.config.ExternalProviderRestClientFactory;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -18,20 +21,45 @@ import org.springframework.web.client.RestClient;
 public class SolvedAcExternalProblemProvider implements ExternalProblemProvider {
 
     private static final String BASE_URL = "https://solved.ac";
-    private final RestClient restClient;
+    private static final Map<String, String> SOLVED_AC_TAG_IDS = new LinkedHashMap<>();
 
-    public SolvedAcExternalProblemProvider(ExternalProviderRestClientFactory restClientFactory) {
+    static {
+        SOLVED_AC_TAG_IDS.put("그래프", "graphs");
+        SOLVED_AC_TAG_IDS.put("DP", "dp");
+        SOLVED_AC_TAG_IDS.put("브루트포스", "bruteforcing");
+        SOLVED_AC_TAG_IDS.put("구현", "implementation");
+        SOLVED_AC_TAG_IDS.put("BFS", "bfs");
+        SOLVED_AC_TAG_IDS.put("DFS", "dfs");
+        SOLVED_AC_TAG_IDS.put("그리디", "greedy");
+        SOLVED_AC_TAG_IDS.put("이분탐색", "binary_search");
+        SOLVED_AC_TAG_IDS.put("자료구조", "data_structures");
+    }
+
+    private final RestClient restClient;
+    private final SearchIntentAnalyzer searchIntentAnalyzer;
+
+    public SolvedAcExternalProblemProvider(
+            ExternalProviderRestClientFactory restClientFactory,
+            SearchIntentAnalyzer searchIntentAnalyzer
+    ) {
         this.restClient = restClientFactory.create(BASE_URL);
+        this.searchIntentAnalyzer = searchIntentAnalyzer;
     }
 
     @Override
     public List<ExternalProblemSearchItemResponse> search(ProblemSearchRequest request) {
-        if (!StringUtils.hasText(request.getKeyword()) && request.getTags().isEmpty()) {
+        if (!supportsPlatform(request)) {
+            return List.of();
+        }
+        String textKeyword = searchIntentAnalyzer.resolveKeywordText(request);
+        List<String> effectiveTags = searchIntentAnalyzer.resolveCanonicalTags(request);
+        String difficultyToken = toDifficultyQueryToken(request.getDifficulty());
+        if (!StringUtils.hasText(textKeyword) && effectiveTags.isEmpty() && !StringUtils.hasText(difficultyToken)) {
             return List.of();
         }
 
         try {
-            String query = buildQuery(request);
+            String query = buildQuery(textKeyword, effectiveTags, difficultyToken);
             SolvedAcSearchResponse response = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .path("/api/v3/search/problem")
@@ -47,7 +75,7 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
             }
 
             return response.getItems().stream()
-                    .limit(12)
+                    .limit(15)
                     .map(item -> ExternalProblemSearchItemResponse.builder()
                             .id("solvedac-" + item.getProblemId())
                             .providerKey(providerKey())
@@ -59,7 +87,12 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                             .tags(item.getTags() == null ? List.of() : item.getTags().stream()
                                     .map(SolvedAcTag::getDisplayNames)
                                     .filter(names -> names != null && !names.isEmpty())
-                                    .map(names -> names.get(0))
+                                    .map(names -> names.stream()
+                                            .map(SolvedAcTagDisplayName::getName)
+                                            .filter(StringUtils::hasText)
+                                            .findFirst()
+                                            .orElse(null))
+                                    .filter(StringUtils::hasText)
                                     .toList())
                             .externalUrl("https://www.acmicpc.net/problem/" + item.getProblemId())
                             .summary("solved.ac 검색 결과를 기반으로 매핑한 백준 문제")
@@ -83,16 +116,50 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
         return "solved.ac";
     }
 
-    private String buildQuery(ProblemSearchRequest request) {
-        StringBuilder builder = new StringBuilder();
-        if (StringUtils.hasText(request.getKeyword())) {
-            builder.append(request.getKeyword().trim());
+    private String buildQuery(String textKeyword, List<String> effectiveTags, String difficultyToken) {
+        List<String> queryTerms = new java.util.ArrayList<>();
+        if (StringUtils.hasText(textKeyword)) {
+            queryTerms.add(textKeyword.trim());
         }
-        if (!request.getTags().isEmpty()) {
-            if (!builder.isEmpty()) builder.append(' ');
-            builder.append(String.join(" ", request.getTags()));
+        if (!effectiveTags.isEmpty()) {
+            queryTerms.addAll(effectiveTags.stream()
+                    .map(this::toSolvedAcTagToken)
+                    .filter(StringUtils::hasText)
+                    .toList());
         }
-        return builder.toString().trim();
+        if (StringUtils.hasText(difficultyToken)) {
+            queryTerms.add(difficultyToken);
+        }
+        return String.join(" ", queryTerms).trim();
+    }
+
+    private boolean supportsPlatform(ProblemSearchRequest request) {
+        return request.getPlatform().isEmpty() || request.getPlatform().stream().anyMatch(platform -> "백준".equals(platform));
+    }
+
+    private String toSolvedAcTagToken(String tag) {
+        String normalized = tag == null ? "" : tag.trim().toLowerCase(Locale.ROOT);
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+
+        return SOLVED_AC_TAG_IDS.entrySet().stream()
+                .filter(entry -> entry.getKey().toLowerCase(Locale.ROOT).equals(normalized))
+                .map(entry -> "#" + entry.getValue())
+                .findFirst()
+                .orElse(tag.trim());
+    }
+
+    private String toDifficultyQueryToken(List<Problem.Difficulty> difficulties) {
+        if (difficulties == null || difficulties.size() != 1 || difficulties.get(0) == null) {
+            return "";
+        }
+
+        return switch (difficulties.get(0)) {
+            case easy -> "tier:b1..b5";
+            case medium -> "tier:s1..s5";
+            case hard -> "tier:g1..r5";
+        };
     }
 
     private Problem.Difficulty mapDifficulty(int level) {
@@ -157,14 +224,35 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
     }
 
     public static final class SolvedAcTag {
-        private List<String> displayNames;
+        private List<SolvedAcTagDisplayName> displayNames;
 
-        public List<String> getDisplayNames() {
+        public List<SolvedAcTagDisplayName> getDisplayNames() {
             return displayNames;
         }
 
-        public void setDisplayNames(List<String> displayNames) {
+        public void setDisplayNames(List<SolvedAcTagDisplayName> displayNames) {
             this.displayNames = displayNames;
+        }
+    }
+
+    public static final class SolvedAcTagDisplayName {
+        private String language;
+        private String name;
+
+        public String getLanguage() {
+            return language;
+        }
+
+        public void setLanguage(String language) {
+            this.language = language;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
         }
     }
 }

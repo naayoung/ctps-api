@@ -57,6 +57,18 @@ public class SearchTypeCanonicalizer {
         return rawTag.trim();
     }
 
+    public boolean isKnownTagAlias(String rawTag) {
+        String normalized = normalize(rawTag);
+        if (normalized.isBlank()) {
+            return false;
+        }
+
+        return TAG_ALIASES.values().stream()
+                .flatMap(List::stream)
+                .map(this::normalize)
+                .anyMatch(alias -> alias.equals(normalized));
+    }
+
     public List<String> expandTagAliases(String rawTag) {
         String canonical = canonicalizeTag(rawTag);
         List<String> aliases = TAG_ALIASES.get(canonical);

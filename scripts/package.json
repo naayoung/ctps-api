@@ -1,0 +1,12 @@
+{
+  "name": "ctps-backend-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "programmers:crawl": "node programmers_catalog_worker.mjs",
+    "programmers:crawl:full": "node programmers_catalog_worker.mjs --full-refresh"
+  },
+  "dependencies": {
+    "playwright": "^1.58.2"
+  }
+}

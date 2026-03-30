@@ -10,7 +10,7 @@ import org.springframework.core.annotation.Order;
 @Order(10)
 public class SolvedAcProviderScoreResolver implements ExternalProblemProviderScoreResolver {
 
-    private static final String PROVIDER_NAME = "SolvedAcExternalProblemProvider";
+    private static final String PROVIDER_NAME = "solvedac";
 
     @Override
     public boolean supports(String providerName) {

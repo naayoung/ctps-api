@@ -56,3 +56,5 @@ target/
 *.tmp
 *.swp
 
+### Script deps ###
+scripts/node_modules/

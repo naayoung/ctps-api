@@ -25,7 +25,7 @@ public class ProblemSearchRequest {
 
     @Min(1)
     @Max(100)
-    private Integer size = 10;
+    private Integer size = 15;
 
     public ProblemSearchRequest copyWithPageAndSize(int nextPage, int nextSize) {
         ProblemSearchRequest copied = new ProblemSearchRequest();

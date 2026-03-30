@@ -104,7 +104,8 @@ class ExternalProblemSearchServiceTest {
         ExternalProblemSearchResponse response = service.search(request);
 
         assertThat(response.getContent()).hasSize(2);
-        assertThat(response.getContent().get(0).getId()).isEqualTo("provider-b-2178");
+        assertThat(response.getContent()).extracting(ExternalProblemSearchItemResponse::getId)
+                .containsExactlyInAnyOrder("provider-b-2178", "provider-b-1260");
         assertThat(response.getContent().get(0).getRelevanceScore()).isNotNull();
         assertThat(response.getContent().get(0).getRelevanceScore())
                 .isGreaterThanOrEqualTo(response.getContent().get(1).getRelevanceScore());
@@ -128,6 +129,91 @@ class ExternalProblemSearchServiceTest {
         assertThat(response.getWarningMessage()).isNotBlank();
         then(metricsService).should().recordProviderFailure(providerA.getClass().getSimpleName());
         then(cacheService).should(atLeastOnce()).save(anyString(), anyString(), anyList(), anyLong(), anyInt());
+    }
+
+    @Test
+    @DisplayName("provider key 기준으로 전용 score resolver를 적용한다")
+    void search_usesProviderKeyForResolverSelection() throws Exception {
+        ProblemSearchRequest request = new ProblemSearchRequest();
+        setField(request, "keyword", "DFS");
+        setField(request, "platform", List.of("백준"));
+
+        ExternalProblemSearchItemResponse solvedAcItem = ExternalProblemSearchItemResponse.builder()
+                .id("solvedac-1260")
+                .title("DFS와 BFS")
+                .platform("백준")
+                .problemNumber("1260")
+                .difficulty(Problem.Difficulty.medium)
+                .tags(List.of("DFS", "BFS"))
+                .externalUrl("https://example.com/1260")
+                .recommendationReason("탐색 대표 문제")
+                .solved(false)
+                .build();
+
+        given(providerA.providerKey()).willReturn("solvedac");
+        given(providerA.providerLabel()).willReturn("solved.ac");
+        given(providerB.providerKey()).willReturn("programmers");
+        given(providerB.providerLabel()).willReturn("프로그래머스");
+        given(cacheService.findValidCache(anyString(), anyString())).willReturn(null);
+        given(providerA.search(any())).willReturn(List.of(solvedAcItem));
+        given(providerB.search(any())).willReturn(List.of());
+
+        ExternalProblemSearchResponse response = service.search(request);
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getProviderKey()).isEqualTo("solvedac");
+        assertThat(response.getContent().get(0).getProviderNormalizedScore()).isGreaterThan(0.0);
+    }
+
+    @Test
+    @DisplayName("관련도순 외부 결과는 첫 구간에서 provider별로 섞어서 노출한다")
+    void search_diversifiesProvidersForFirstWindow() throws Exception {
+        ProblemSearchRequest request = new ProblemSearchRequest();
+        setField(request, "keyword", "DFS");
+        setField(request, "page", 0);
+        setField(request, "size", 6);
+
+        given(providerA.providerKey()).willReturn("solvedac");
+        given(providerB.providerKey()).willReturn("programmers");
+        given(cacheService.findValidCache(anyString(), anyString())).willReturn(null);
+        given(providerA.search(any())).willReturn(List.of(
+                external("boj-1", "백준 DFS 1", "백준", "1", "solvedac"),
+                external("boj-2", "백준 DFS 2", "백준", "2", "solvedac"),
+                external("boj-3", "백준 DFS 3", "백준", "3", "solvedac")
+        ));
+        given(providerB.search(any())).willReturn(List.of(
+                external("pg-1", "프로그래머스 DFS 1", "프로그래머스", "11", "programmers"),
+                external("pg-2", "프로그래머스 DFS 2", "프로그래머스", "12", "programmers")
+        ));
+
+        ExternalProblemSearchResponse response = service.search(request);
+
+        assertThat(response.getContent()).hasSize(5);
+        assertThat(response.getContent().subList(0, 4))
+                .extracting(ExternalProblemSearchItemResponse::getProviderKey)
+                .contains("solvedac", "programmers");
+    }
+
+    private ExternalProblemSearchItemResponse external(
+            String id,
+            String title,
+            String platform,
+            String problemNumber,
+            String providerKey
+    ) {
+        return ExternalProblemSearchItemResponse.builder()
+                .id(id)
+                .providerKey(providerKey)
+                .providerLabel(providerKey)
+                .title(title)
+                .platform(platform)
+                .problemNumber(problemNumber)
+                .difficulty(Problem.Difficulty.medium)
+                .tags(List.of("DFS"))
+                .externalUrl("https://example.com/" + id)
+                .recommendationReason("탐색 추천")
+                .solved(false)
+                .build();
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {

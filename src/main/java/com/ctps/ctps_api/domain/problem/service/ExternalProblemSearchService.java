@@ -44,7 +44,7 @@ public class ExternalProblemSearchService {
         ProcessedSearchQuery processedQuery = searchQueryPreprocessor.process(request);
         ExternalFetchOutcome fetchOutcome = fetchProviderResults(request, processedQuery);
         List<ProviderScoredExternalProblem> rankedItems = deduplicateAndScore(fetchOutcome.items(), processedQuery);
-        List<ProviderScoredExternalProblem> sortedItems = sortResults(rankedItems);
+        List<ProviderScoredExternalProblem> sortedItems = sortResults(rankedItems, request);
         return toPageResponse(sortedItems, pageable, fetchOutcome.failedProviders());
     }
 
@@ -172,8 +172,11 @@ public class ExternalProblemSearchService {
         return List.copyOf(deduplicated.values());
     }
 
-    private List<ProviderScoredExternalProblem> sortResults(List<ProviderScoredExternalProblem> items) {
-        return items.stream()
+    private List<ProviderScoredExternalProblem> sortResults(
+            List<ProviderScoredExternalProblem> items,
+            ProblemSearchRequest request
+    ) {
+        List<ProviderScoredExternalProblem> sorted = items.stream()
                 .sorted(Comparator
                         .comparingInt(this::relevanceScoreOrZero).reversed()
                         .thenComparing(candidate -> candidate.getItem().isSolved())
@@ -181,6 +184,57 @@ public class ExternalProblemSearchService {
                         .thenComparing(candidate -> safeLower(candidate.getItem().getPlatform()))
                         .thenComparing(candidate -> safeLower(candidate.getItem().getTitle())))
                 .toList();
+        return diversifyProvidersIfNeeded(sorted, request);
+    }
+
+    private List<ProviderScoredExternalProblem> diversifyProvidersIfNeeded(
+            List<ProviderScoredExternalProblem> sorted,
+            ProblemSearchRequest request
+    ) {
+        if (sorted.size() < 2
+                || !request.getPlatform().isEmpty()
+                || request.getSortOption() != com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption.RELEVANCE) {
+            return sorted;
+        }
+
+        Map<String, java.util.ArrayDeque<ProviderScoredExternalProblem>> grouped = new LinkedHashMap<>();
+        for (ProviderScoredExternalProblem item : sorted) {
+            String providerKey = safeLower(item.getItem().getProviderKey());
+            grouped.computeIfAbsent(providerKey, key -> new java.util.ArrayDeque<>()).add(item);
+        }
+
+        if (grouped.size() < 2) {
+            return sorted;
+        }
+
+        int diversifiedWindow = Math.min(sorted.size(), Math.max(request.getSize(), 9));
+        List<ProviderScoredExternalProblem> diversified = new java.util.ArrayList<>(sorted.size());
+
+        while (diversified.size() < diversifiedWindow) {
+            boolean progressed = false;
+            for (java.util.ArrayDeque<ProviderScoredExternalProblem> queue : grouped.values()) {
+                ProviderScoredExternalProblem next = queue.pollFirst();
+                if (next == null) {
+                    continue;
+                }
+                diversified.add(next);
+                progressed = true;
+                if (diversified.size() >= diversifiedWindow) {
+                    break;
+                }
+            }
+            if (!progressed) {
+                break;
+            }
+        }
+
+        for (ProviderScoredExternalProblem item : sorted) {
+            if (!diversified.contains(item)) {
+                diversified.add(item);
+            }
+        }
+
+        return List.copyOf(diversified);
     }
 
     private ExternalProblemSearchResponse toPageResponse(

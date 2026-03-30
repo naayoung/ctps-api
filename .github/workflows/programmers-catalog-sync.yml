@@ -1,0 +1,104 @@
+name: Programmers Catalog Sync
+
+on:
+  schedule:
+    - cron: '10 0 * * *'
+    - cron: '10 1 1 * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Crawler mode'
+        required: true
+        default: 'incremental'
+        type: choice
+        options:
+          - incremental
+          - full-refresh
+
+permissions:
+  contents: write
+
+jobs:
+  sync-programmers-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: scripts/package-lock.json
+
+      - name: Install crawler dependencies
+        working-directory: scripts
+        run: npm ci
+
+      - name: Install Playwright browser
+        working-directory: scripts
+        run: npx playwright install --with-deps chromium
+
+      - name: Resolve crawl mode
+        id: resolve-mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          INPUT_MODE: ${{ inputs.mode }}
+        run: |
+          MODE="incremental"
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_MODE" ]; then
+            MODE="$INPUT_MODE"
+          elif [ "$EVENT_SCHEDULE" = "10 1 1 * *" ]; then
+            MODE="full-refresh"
+          fi
+
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Resolved mode: $MODE"
+
+      - name: Run Programmers crawler
+        env:
+          PROGRAMMERS_IMPORT_DIR: ${{ github.workspace }}/generated/programmers-catalog
+          PROGRAMMERS_CRAWLER_PAGES: ${{ vars.PROGRAMMERS_CRAWLER_PAGES || '3' }}
+          PROGRAMMERS_CRAWLER_DELAY_MS: ${{ vars.PROGRAMMERS_CRAWLER_DELAY_MS || '250' }}
+          PROGRAMMERS_CRAWLER_RETENTION: ${{ vars.PROGRAMMERS_CRAWLER_RETENTION || '10' }}
+          PROGRAMMERS_CRAWLER_MODE: ${{ steps.resolve-mode.outputs.mode }}
+        run: |
+          mkdir -p "$PROGRAMMERS_IMPORT_DIR"
+          node scripts/programmers_catalog_worker.mjs
+          LATEST_FILE=$(ls -t "$PROGRAMMERS_IMPORT_DIR"/programmers-catalog-*.json | head -n 1)
+          cp "$LATEST_FILE" "$PROGRAMMERS_IMPORT_DIR/latest.json"
+          echo "latest_file=$LATEST_FILE" >> "$GITHUB_ENV"
+
+      - name: Commit updated catalog snapshot
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- generated/programmers-catalog; then
+            echo "No catalog changes detected."
+            exit 0
+          fi
+
+          git add generated/programmers-catalog
+          git commit -m "chore: 프로그래머스 카탈로그 스냅샷 갱신"
+          git push
+
+      - name: Trigger backend ingest
+        env:
+          CTPS_PROGRAMMERS_INGEST_URL: ${{ secrets.CTPS_PROGRAMMERS_INGEST_URL }}
+          ADMIN_SECURITY_TOKEN: ${{ secrets.ADMIN_SECURITY_TOKEN }}
+        run: |
+          if [ -z "$CTPS_PROGRAMMERS_INGEST_URL" ] || [ -z "$ADMIN_SECURITY_TOKEN" ]; then
+            echo "Backend ingest skipped because required secrets are missing."
+            exit 0
+          fi
+
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "X-Admin-Token: $ADMIN_SECURITY_TOKEN" \
+            "$CTPS_PROGRAMMERS_INGEST_URL"
