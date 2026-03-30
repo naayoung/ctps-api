@@ -3,6 +3,7 @@ package com.ctps.ctps_api.domain.problem.repository;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.domain.search.service.SearchTypeCanonicalizer;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.TypedQuery;
@@ -19,6 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +32,12 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    private final SearchTypeCanonicalizer searchTypeCanonicalizer;
+
+    public ProblemRepositoryImpl(SearchTypeCanonicalizer searchTypeCanonicalizer) {
+        this.searchTypeCanonicalizer = searchTypeCanonicalizer;
+    }
 
     @Override
     public Page<Problem> searchProblems(Long userId, ProblemSearchRequest request) {
@@ -122,8 +130,10 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
 
         if (!request.getTags().isEmpty()) {
             List<String> normalizedTags = request.getTags().stream()
-                    .map(String::trim)
+                    .flatMap(tag -> searchTypeCanonicalizer.expandTagAliases(tag).stream())
+                    .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
                     .filter(StringUtils::hasText)
+                    .distinct()
                     .toList();
             if (!normalizedTags.isEmpty()) {
                 predicates.add(buildTagInPredicate(query, cb, root, normalizedTags));
@@ -237,7 +247,7 @@ public class ProblemRepositoryImpl implements ProblemSearchRepository {
         Root<Problem> correlatedRoot = subquery.correlate(root);
         Join<Problem, String> tagJoin = correlatedRoot.join("tags");
         subquery.select(cb.literal(1));
-        subquery.where(tagJoin.in(tags));
+        subquery.where(cb.lower(tagJoin).in(tags));
         return cb.exists(subquery);
     }
 }

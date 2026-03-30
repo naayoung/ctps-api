@@ -6,6 +6,7 @@ import com.ctps.ctps_api.domain.auth.entity.AuthProvider;
 import com.ctps.ctps_api.domain.auth.entity.User;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.domain.search.service.SearchTypeCanonicalizer;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -25,7 +26,7 @@ import org.springframework.context.annotation.Import;
         "spring.datasource.password=",
         "spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect"
 })
-@Import(ProblemRepositoryImpl.class)
+@Import({ProblemRepositoryImpl.class, SearchTypeCanonicalizer.class})
 class ProblemSearchRepositoryTest {
 
     @Autowired
@@ -91,6 +92,42 @@ class ProblemSearchRepositoryTest {
 
         assertThat(result.getContent()).extracting(Problem::getTitle)
                 .containsExactly("어려운 문제", "보통 문제", "쉬운 문제");
+    }
+
+    @Test
+    @DisplayName("태그 검색은 별칭으로 저장된 태그도 같은 유형으로 검색한다")
+    void searchProblems_matchesCanonicalTagAgainstAliasTags() {
+        Problem dfsProblem = saveProblem(
+                "백준",
+                "트리 순회",
+                "1991",
+                List.of("깊이 우선 탐색"),
+                Problem.Difficulty.medium,
+                Problem.Result.success,
+                false,
+                LocalDate.of(2026, 3, 20),
+                LocalDateTime.of(2026, 3, 12, 12, 0)
+        );
+        saveProblem(
+                "백준",
+                "큐",
+                "10845",
+                List.of("자료구조"),
+                Problem.Difficulty.easy,
+                Problem.Result.success,
+                false,
+                LocalDate.of(2026, 3, 21),
+                LocalDateTime.of(2026, 3, 13, 12, 0)
+        );
+
+        ProblemSearchRequest request = new ProblemSearchRequestFixture()
+                .tags(List.of("DFS"))
+                .build();
+
+        var result = problemRepository.searchProblems(ensureUser().getId(), request);
+
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(result.getContent()).extracting(Problem::getId).containsExactly(dfsProblem.getId());
     }
 
     private Problem saveProblem(

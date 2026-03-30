@@ -57,6 +57,24 @@ public class SearchTypeCanonicalizer {
         return rawTag.trim();
     }
 
+    public List<String> expandTagAliases(String rawTag) {
+        String canonical = canonicalizeTag(rawTag);
+        List<String> aliases = TAG_ALIASES.get(canonical);
+        if (aliases == null || aliases.isEmpty()) {
+            return List.of(canonical);
+        }
+
+        List<String> expanded = new ArrayList<>();
+        expanded.add(canonical);
+        expanded.addAll(aliases);
+        return expanded.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(tag -> !tag.isBlank())
+                .distinct()
+                .toList();
+    }
+
     public List<ResolvedType> resolveSearchQuery(String query) {
         String normalized = normalize(query);
         if (normalized.isBlank()) {
