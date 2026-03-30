@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchItemResponse;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.domain.problem.service.ProblemMetadataService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
@@ -38,6 +39,9 @@ class ProblemControllerSearchTest {
 
     @MockBean
     private ProblemSearchService problemSearchService;
+
+    @MockBean
+    private ProblemMetadataService problemMetadataService;
 
     @MockBean
     private UserAuthenticationInterceptor userAuthenticationInterceptor;

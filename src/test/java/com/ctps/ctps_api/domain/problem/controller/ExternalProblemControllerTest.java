@@ -12,6 +12,7 @@ import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchItemRe
 import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemSearchService;
+import com.ctps.ctps_api.domain.problem.service.ProblemMetadataService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
@@ -45,6 +46,9 @@ class ExternalProblemControllerTest {
 
     @MockBean
     private ExternalProblemSearchService externalProblemSearchService;
+
+    @MockBean
+    private ProblemMetadataService problemMetadataService;
 
     @MockBean
     private UserAuthenticationInterceptor userAuthenticationInterceptor;

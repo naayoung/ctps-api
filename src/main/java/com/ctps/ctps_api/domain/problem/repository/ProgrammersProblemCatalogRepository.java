@@ -7,4 +7,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface ProgrammersProblemCatalogRepository extends JpaRepository<ProgrammersProblemCatalog, Long> {
 
     Optional<ProgrammersProblemCatalog> findByExternalId(String externalId);
+
+    Optional<ProgrammersProblemCatalog> findFirstByProblemNumber(String problemNumber);
+
+    Optional<ProgrammersProblemCatalog> findFirstByExternalUrl(String externalUrl);
 }

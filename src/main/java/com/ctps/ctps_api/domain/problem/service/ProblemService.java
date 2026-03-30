@@ -3,6 +3,8 @@ package com.ctps.ctps_api.domain.problem.service;
 import com.ctps.ctps_api.domain.auth.entity.User;
 import com.ctps.ctps_api.domain.auth.repository.UserRepository;
 import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
+import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResolveRequest;
+import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
@@ -18,6 +20,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -28,17 +31,31 @@ public class ProblemService {
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
     private final SearchActivityService searchActivityService;
+    private final ProblemMetadataService problemMetadataService;
 
     @Transactional
     public ProblemResponse createProblem(ProblemCreateRequest request) {
         User user = userRepository.getReferenceById(CurrentUserContext.getRequired().getId());
+        ProblemMetadataResponse metadata = resolveProblemMetadata(
+                request.getPlatform(),
+                request.getNumber(),
+                request.getLink(),
+                request.getTitle(),
+                request.getTags()
+        );
+        String resolvedPlatform = firstText(request.getPlatform(), metadata == null ? null : metadata.getPlatform());
+        String resolvedNumber = firstText(request.getNumber(), metadata == null ? null : metadata.getNumber());
+        String resolvedLink = firstText(request.getLink(), metadata == null ? null : metadata.getLink());
+        List<String> resolvedTags = hasTags(request.getTags())
+                ? request.getTags()
+                : metadata == null || metadata.getTags() == null ? List.of() : metadata.getTags();
         Problem problem = Problem.builder()
                 .user(user)
-                .platform(request.getPlatform())
-                .title(resolveTitle(request.getTitle(), request.getPlatform(), request.getNumber()))
-                .number(request.getNumber())
-                .link(request.getLink())
-                .tags(request.getTags())
+                .platform(resolvedPlatform)
+                .title(resolveTitle(firstText(request.getTitle(), metadata == null ? null : metadata.getTitle()), resolvedPlatform, resolvedNumber))
+                .number(resolvedNumber)
+                .link(resolvedLink)
+                .tags(resolvedTags)
                 .difficulty(request.getDifficulty())
                 .memo(request.getMemo())
                 .result(request.getResult())
@@ -131,6 +148,37 @@ public class ProblemService {
             return platform + " " + number;
         }
         return number;
+    }
+
+    private ProblemMetadataResponse resolveProblemMetadata(
+            String platform,
+            String number,
+            String link,
+            String title,
+            List<String> tags
+    ) {
+        if (StringUtils.hasText(title) && hasTags(tags)) {
+            return null;
+        }
+
+        if (!StringUtils.hasText(link) && (!StringUtils.hasText(platform) || !StringUtils.hasText(number))) {
+            return null;
+        }
+
+        ProblemMetadataResolveRequest request = new ProblemMetadataResolveRequest();
+        request.setPlatform(platform);
+        request.setNumber(number);
+        request.setLink(link);
+        ProblemMetadataResponse response = problemMetadataService.resolve(request);
+        return response != null && response.isMetadataFound() ? response : null;
+    }
+
+    private boolean hasTags(List<String> tags) {
+        return tags != null && !tags.isEmpty();
+    }
+
+    private String firstText(String primary, String fallback) {
+        return StringUtils.hasText(primary) ? primary : fallback;
     }
 
     private void syncReviewState(Problem problem) {
