@@ -83,7 +83,9 @@ public class ReviewService {
                         .problemId(review.getProblem().getId())
                         .problemTitle(review.getProblem().getPlatform() + " #" + review.getProblem().getNumber())
                         .platform(review.getProblem().getPlatform())
-                        .level(review.getProblem().getDifficulty().name())
+                        .level(review.getProblem().getDifficulty() != null
+                                ? review.getProblem().getDifficulty().name()
+                                : "medium")
                         .reviewCount(review.getReviewCount())
                         .nextReviewDate(review.getNextReviewDate())
                         .overdueDays((int) Math.max(0, ChronoUnit.DAYS.between(review.getNextReviewDate(), targetDate)))
