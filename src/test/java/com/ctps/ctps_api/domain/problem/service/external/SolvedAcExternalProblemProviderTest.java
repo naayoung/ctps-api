@@ -1,7 +1,8 @@
 package com.ctps.ctps_api.domain.problem.service.external;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
@@ -23,7 +24,8 @@ class SolvedAcExternalProblemProviderTest {
     void search_usesTierQueryForDifficultyOnlyRequest() throws Exception {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://solved.ac");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(queryParam("query", "tier:s1..s5"))
+        server.expect(requestTo("https://solved.ac/api/v3/search/problem?query=tier%3As1..s5&page=1"))
+                .andExpect(header("User-Agent", "ctps-external-search/1.0"))
                 .andRespond(withSuccess("""
                         {
                           "count": 1,

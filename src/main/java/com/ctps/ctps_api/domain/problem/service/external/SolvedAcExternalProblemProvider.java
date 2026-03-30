@@ -6,6 +6,9 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemProvider;
 import com.ctps.ctps_api.domain.problem.service.search.SearchIntentAnalyzer;
 import com.ctps.ctps_api.global.config.ExternalProviderRestClientFactory;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 @Slf4j
 @Component
@@ -60,12 +64,17 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
 
         try {
             String query = buildQuery(textKeyword, effectiveTags, difficultyToken);
+            log.info(
+                    "solved.ac query platform={} keyword={} tags={} difficulties={} builtQuery={}",
+                    request.getPlatform(),
+                    textKeyword,
+                    effectiveTags,
+                    request.getDifficulty(),
+                    query
+            );
             SolvedAcSearchResponse response = restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/api/v3/search/problem")
-                            .queryParam("query", query)
-                            .queryParam("page", 1)
-                            .build())
+                    .uri(buildSearchUri(query))
+                    .header("User-Agent", "ctps-external-search/1.0")
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
                     .body(SolvedAcSearchResponse.class);
@@ -100,6 +109,14 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                             .solved(false)
                             .build())
                     .toList();
+        } catch (RestClientResponseException exception) {
+            log.warn(
+                    "solved.ac provider failed status={} responseBody={}",
+                    exception.getStatusCode(),
+                    exception.getResponseBodyAsString(),
+                    exception
+            );
+            throw new IllegalStateException("solved.ac provider failed", exception);
         } catch (Exception exception) {
             log.warn("solved.ac provider failed", exception);
             throw new IllegalStateException("solved.ac provider failed", exception);
@@ -160,6 +177,11 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
             case medium -> "tier:s1..s5";
             case hard -> "tier:g1..r5";
         };
+    }
+
+    private URI buildSearchUri(String query) {
+        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+        return URI.create(BASE_URL + "/api/v3/search/problem?query=" + encodedQuery + "&page=1");
     }
 
     private Problem.Difficulty mapDifficulty(int level) {

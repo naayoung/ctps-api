@@ -35,7 +35,7 @@ public class ProblemService {
         Problem problem = Problem.builder()
                 .user(user)
                 .platform(request.getPlatform())
-                .title(resolveTitle(request.getTitle(), request.getNumber()))
+                .title(resolveTitle(request.getTitle(), request.getPlatform(), request.getNumber()))
                 .number(request.getNumber())
                 .link(request.getLink())
                 .tags(request.getTags())
@@ -117,9 +117,12 @@ public class ProblemService {
                 .orElseThrow(() -> new NotFoundException("문제를 찾을 수 없습니다. id=" + id));
     }
 
-    private String resolveTitle(String title, String number) {
+    private String resolveTitle(String title, String platform, String number) {
         if (title != null && !title.isBlank()) {
             return title;
+        }
+        if (platform != null && !platform.isBlank() && number != null && !number.isBlank()) {
+            return platform + " " + number;
         }
         return number;
     }

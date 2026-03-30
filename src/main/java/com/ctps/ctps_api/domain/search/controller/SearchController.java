@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/search")
 @RequiredArgsConstructor
+@Slf4j
 public class SearchController {
 
     private final UnifiedSearchService unifiedSearchService;
@@ -47,6 +49,17 @@ public class SearchController {
             @Valid ProblemSearchRequest request,
             HttpServletRequest httpServletRequest
     ) {
+        log.info(
+                "search request queryString={} keyword={} platform={} difficulty={} tags={} sort={} page={} size={}",
+                httpServletRequest.getQueryString(),
+                request.getKeyword(),
+                request.getPlatform(),
+                request.getDifficulty(),
+                request.getTags(),
+                request.getSort(),
+                request.getPage(),
+                request.getSize()
+        );
         String principalKey = CurrentUserContext.getOptional()
                 .map(user -> "user:" + user.getId())
                 .orElse("guest");
