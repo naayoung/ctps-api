@@ -10,8 +10,10 @@ import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResolveRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProgrammersProblemCatalogRepository;
+import com.ctps.ctps_api.domain.problem.service.metadata.ProgrammersProblemMetadataResolver;
 import com.ctps.ctps_api.global.config.ExternalProviderRestClientFactory;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -62,9 +64,11 @@ class ProblemMetadataServiceTest {
                 .willReturn(Optional.empty());
 
         ProblemMetadataService service = new ProblemMetadataService(
-                new TestExternalProviderRestClientFactory(builder),
-                repository,
-                new ObjectMapper()
+                List.of(new ProgrammersProblemMetadataResolver(
+                        new TestExternalProviderRestClientFactory(builder),
+                        repository,
+                        new ObjectMapper()
+                ))
         );
 
         ProblemMetadataResolveRequest request = new ProblemMetadataResolveRequest();
@@ -117,9 +121,11 @@ class ProblemMetadataServiceTest {
                 .willReturn(Optional.empty());
 
         ProblemMetadataService service = new ProblemMetadataService(
-                new TestExternalProviderRestClientFactory(builder),
-                repository,
-                new ObjectMapper()
+                List.of(new ProgrammersProblemMetadataResolver(
+                        new TestExternalProviderRestClientFactory(builder),
+                        repository,
+                        new ObjectMapper()
+                ))
         );
 
         ProblemMetadataResolveRequest request = new ProblemMetadataResolveRequest();

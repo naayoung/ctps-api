@@ -14,6 +14,7 @@ import com.ctps.ctps_api.domain.problem.repository.ProgrammersProblemCatalogRepo
 import com.ctps.ctps_api.domain.problem.service.ProblemMetadataService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemService;
+import com.ctps.ctps_api.domain.problem.service.metadata.ProgrammersProblemMetadataResolver;
 import com.ctps.ctps_api.global.config.ExternalProviderRestClientFactory;
 import com.ctps.ctps_api.global.security.AdminAuthenticationInterceptor;
 import com.ctps.ctps_api.global.security.CorsOriginProperties;
@@ -37,6 +38,7 @@ import org.springframework.web.client.RestClient;
 @WebMvcTest(ProblemController.class)
 @Import({
         ProblemMetadataService.class,
+        ProgrammersProblemMetadataResolver.class,
         ProblemControllerMetadataIntegrationTest.TestConfig.class
 })
 class ProblemControllerMetadataIntegrationTest {
