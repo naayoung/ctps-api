@@ -31,7 +31,7 @@ public class UserAuthenticationInterceptor implements HandlerInterceptor {
         UserSession session = userSessionRepository.findBySessionTokenAndExpiresAtAfter(sessionToken, LocalDateTime.now())
                 .orElseThrow(() -> new UnauthorizedException("로그인 세션이 만료되었습니다."));
 
-        CurrentUserContext.set(AuthenticatedUser.from(session.getUser()));
+        CurrentUserContext.set(AuthenticatedUser.from(session.getUser(), session.getSessionToken()));
         return true;
     }
 

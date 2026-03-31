@@ -11,12 +11,14 @@ public class AuthenticatedUser {
     private Long id;
     private String username;
     private String displayName;
+    private String sessionToken;
 
-    public static AuthenticatedUser from(User user) {
+    public static AuthenticatedUser from(User user, String sessionToken) {
         return AuthenticatedUser.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .displayName(user.getDisplayName())
+                .sessionToken(sessionToken)
                 .build();
     }
 }

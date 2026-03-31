@@ -52,6 +52,8 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    private LocalDateTime emailVerifiedAt;
+
     private LocalDateTime deletedAt;
 
     @Builder
@@ -65,6 +67,7 @@ public class User {
             String primaryProviderUserId,
             LocalDateTime createdAt,
             LocalDateTime updatedAt,
+            LocalDateTime emailVerifiedAt,
             LocalDateTime deletedAt
     ) {
         this.username = username;
@@ -76,6 +79,7 @@ public class User {
         this.primaryAuthProvider = primaryAuthProvider;
         this.primaryProviderUserId = primaryProviderUserId;
         this.updatedAt = updatedAt;
+        this.emailVerifiedAt = emailVerifiedAt;
         this.deletedAt = deletedAt;
     }
 
@@ -110,12 +114,27 @@ public class User {
         this.updatedAt = now;
     }
 
+    public void prepareLocalSignup(String displayName, String passwordHash, LocalDateTime now) {
+        this.displayName = displayName;
+        this.passwordHash = passwordHash;
+        this.primaryAuthProvider = AuthProvider.LOCAL;
+        this.primaryProviderUserId = null;
+        this.emailVerifiedAt = null;
+        this.updatedAt = now;
+    }
+
+    public void markEmailVerified(LocalDateTime now) {
+        this.emailVerifiedAt = now;
+        this.updatedAt = now;
+    }
+
     public void markDeleted(String anonymizedUsername, String anonymizedEmail, LocalDateTime now) {
         this.username = anonymizedUsername;
         this.email = anonymizedEmail;
         this.displayName = "탈퇴한 사용자";
         this.profileImageUrl = null;
         this.primaryProviderUserId = null;
+        this.emailVerifiedAt = null;
         this.deletedAt = now;
         this.updatedAt = now;
     }
@@ -132,5 +151,9 @@ public class User {
 
     public boolean canUsePasswordAuth() {
         return primaryAuthProvider == AuthProvider.LOCAL;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
     }
 }

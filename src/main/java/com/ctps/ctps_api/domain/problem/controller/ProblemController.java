@@ -50,7 +50,7 @@ public class ProblemController {
     }
 
     @GetMapping("/metadata/resolve")
-    public ResponseEntity<ApiResponse<ProblemMetadataResponse>> resolveProblemMetadata(ProblemMetadataResolveRequest request) {
+    public ResponseEntity<ApiResponse<ProblemMetadataResponse>> resolveProblemMetadata(@Valid ProblemMetadataResolveRequest request) {
         return ResponseEntity.ok(ApiResponse.success("문제 메타데이터 조회 성공", problemMetadataService.resolve(request)));
     }
 
@@ -63,7 +63,7 @@ public class ProblemController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ProblemResponse>> updateProblem(
             @PathVariable Long id,
-            @RequestBody ProblemUpdateRequest request
+            @Valid @RequestBody ProblemUpdateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success("문제 수정 성공", problemService.updateProblem(id, request)));
     }

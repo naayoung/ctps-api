@@ -50,12 +50,11 @@ public class SearchController {
             HttpServletRequest httpServletRequest
     ) {
         log.info(
-                "search request queryString={} keyword={} platform={} difficulty={} tags={} sort={} page={} size={}",
-                httpServletRequest.getQueryString(),
-                request.getKeyword(),
-                request.getPlatform(),
-                request.getDifficulty(),
-                request.getTags(),
+                "search request keywordLength={} platformCount={} difficultyCount={} tagCount={} sort={} page={} size={}",
+                request.getKeyword() == null ? 0 : request.getKeyword().length(),
+                request.getPlatform().size(),
+                request.getDifficulty().size(),
+                request.getTags().size(),
                 request.getSort(),
                 request.getPage(),
                 request.getSize()

@@ -112,6 +112,6 @@ class SearchControllerCacheIntegrationTest {
                 .filter(cache -> "solvedac".equals(cache.getProvider()))
                 .map(ExternalProblemCache::getQueryKey)
                 .toList())
-                .anyMatch(queryKey -> queryKey.startsWith("solvedac|"));
+                .anyMatch(queryKey -> queryKey.contains("|provider=solvedac|"));
     }
 }

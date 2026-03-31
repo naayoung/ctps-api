@@ -16,7 +16,7 @@ public class CorsOriginProperties {
     private final List<String> allowedOriginPatterns;
 
     public CorsOriginProperties(
-            @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,https://ctps-web.vercel.app}") String allowedOrigins,
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,https://ctps-web.vercel.app,https://ctps.vercel.app}") String allowedOrigins,
             @Value("${app.cors.allowed-origin-patterns:https://*.vercel.app,https://*.railway.app}") String allowedOriginPatterns
     ) {
         this.allowedOrigins = List.of(allowedOrigins.split(",")).stream()
@@ -108,7 +108,14 @@ public class CorsOriginProperties {
     }
 
     private boolean matchesPattern(String origin, String pattern) {
-        String regex = Pattern.quote(pattern).replace("\\*", ".*");
+        StringBuilder regex = new StringBuilder();
+        for (char character : pattern.toCharArray()) {
+            if (character == '*') {
+                regex.append(".*");
+                continue;
+            }
+            regex.append(Pattern.quote(String.valueOf(character)));
+        }
         return origin.matches("^" + regex + "$");
     }
 }

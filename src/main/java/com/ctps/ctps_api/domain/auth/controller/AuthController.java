@@ -90,7 +90,7 @@ public class AuthController {
             HttpServletResponse response
     ) {
         AuthResponse authResponse = authService.register(request, response);
-        return ResponseEntity.ok(ApiResponse.success("회원가입이 완료되었습니다.", authResponse));
+        return ResponseEntity.ok(ApiResponse.success("회원가입이 완료되었습니다. 바로 로그인해 사용하실 수 있어요.", authResponse));
     }
 
     @PostMapping("/username/recovery")
@@ -107,17 +107,18 @@ public class AuthController {
                 "아이디 찾기 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
         );
         FindUsernameResponse result = authService.findUsername(request);
-        String message = switch (result.getStatus()) {
-            case "FOUND" -> "입력한 정보와 일치하는 아이디를 확인했어요.";
-            case "SOCIAL_ACCOUNT" -> "이 계정은 소셜 로그인 계정입니다. 해당 서비스에서 로그인해 주세요.";
-            default -> "입력한 정보와 일치하는 일반 계정을 찾지 못했습니다.";
-        };
+        String message = "local 계정의 로그인 아이디는 회원가입 시 인증한 이메일입니다. 가입한 이메일로 로그인해 주세요.";
         return ResponseEntity.ok(ApiResponse.success(message, result));
     }
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<AuthResponse>> me() {
         return ResponseEntity.ok(ApiResponse.success("현재 사용자 조회 성공", authService.me()));
+    }
+
+    @GetMapping("/csrf")
+    public ResponseEntity<ApiResponse<Void>> csrf() {
+        return ResponseEntity.ok(ApiResponse.success("CSRF 토큰 발급 성공"));
     }
 
     @PostMapping("/refresh")
@@ -155,11 +156,7 @@ public class AuthController {
                 "비밀번호 재설정 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
         );
         PasswordResetRequestResponse result = authService.requestPasswordReset(request, clientKey);
-        String message = switch (result.getStatus()) {
-            case "TOKEN_ISSUED" -> "입력한 정보가 일반 계정과 일치하면 비밀번호 재설정 안내를 진행합니다.";
-            case "SOCIAL_ACCOUNT" -> "이 계정은 소셜 로그인 계정입니다. 해당 서비스에서 로그인해 주세요.";
-            default -> "입력한 정보가 일반 계정과 일치하면 비밀번호 재설정 안내를 진행합니다.";
-        };
+        String message = "입력한 이메일이 일반 계정과 일치하면 비밀번호 재설정 안내를 진행합니다.";
         return ResponseEntity.ok(ApiResponse.success(message, result));
     }
 
@@ -182,7 +179,7 @@ public class AuthController {
 
     @PostMapping("/withdraw")
     public ResponseEntity<ApiResponse<Void>> withdraw(
-            @RequestBody AccountDeleteRequest request,
+            @Valid @RequestBody AccountDeleteRequest request,
             HttpServletRequest httpServletRequest,
             HttpServletResponse response
     ) {

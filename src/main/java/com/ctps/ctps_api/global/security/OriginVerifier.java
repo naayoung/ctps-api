@@ -17,7 +17,7 @@ public class OriginVerifier {
     public boolean isAllowed(HttpServletRequest request) {
         String origin = corsOriginProperties.normalizeRequestOrigin(request.getHeader("Origin"));
         if (StringUtils.hasText(origin)) {
-            return corsOriginProperties.getAllowedOrigins().contains(origin);
+            return corsOriginProperties.isAllowedOrigin(origin);
         }
 
         String referer = request.getHeader("Referer");
@@ -29,7 +29,7 @@ public class OriginVerifier {
             URI uri = URI.create(referer);
             String normalized = uri.getScheme() + "://" + uri.getHost()
                     + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
-            return corsOriginProperties.getAllowedOrigins().contains(normalized);
+            return corsOriginProperties.isAllowedOrigin(normalized);
         } catch (Exception ignored) {
             return false;
         }

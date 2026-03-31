@@ -5,10 +5,10 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class PasswordResetRequestResponse {
+public class SignUpResponse {
 
     private String status;
-    private String resetToken;
-    private String resetLink;
+    private String verificationToken;
+    private String verificationLink;
     private Long expiresInMinutes;
 }

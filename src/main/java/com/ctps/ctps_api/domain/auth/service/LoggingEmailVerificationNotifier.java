@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component;
 
 @Slf4j
 @Component
-public class LoggingPasswordResetNotifier implements PasswordResetNotifier {
+public class LoggingEmailVerificationNotifier implements EmailVerificationNotifier {
 
     @Override
-    public void send(User user, String resetLink, LocalDateTime expiresAt) {
+    public void send(User user, String verificationLink, LocalDateTime expiresAt) {
         log.info(
-                "password_reset_requested userId={} email={} expiresAt={} resetLink=[REDACTED]",
+                "email_verification_requested userId={} email={} expiresAt={} verificationLink=[REDACTED]",
                 user.getId(),
                 user.getEmail(),
                 expiresAt

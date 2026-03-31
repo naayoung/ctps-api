@@ -21,8 +21,8 @@ class AuthBootstrapServiceTest {
 
     private AuthBootstrapService createService(String mode, String railwayEnvironment, String vercelEnvironment, boolean enabled) {
         AuthBootstrapService service = new AuthBootstrapService(userRepository, passwordEncoder);
-        ReflectionTestUtils.setField(service, "bootstrapUsername", "ctps");
-        ReflectionTestUtils.setField(service, "bootstrapPassword", "ctps1234");
+        ReflectionTestUtils.setField(service, "bootstrapUsername", "local-admin");
+        ReflectionTestUtils.setField(service, "bootstrapPassword", "local-password-123");
         ReflectionTestUtils.setField(service, "bootstrapDisplayName", "CTPS 사용자");
         ReflectionTestUtils.setField(service, "bootstrapEnabled", enabled);
         ReflectionTestUtils.setField(service, "deploymentMode", mode);
@@ -35,13 +35,13 @@ class AuthBootstrapServiceTest {
     @DisplayName("local 환경에서는 bootstrap 사용자를 생성한다")
     void ensureBootstrapUser_createsUserInLocal() {
         AuthBootstrapService service = createService("local", "", "", true);
-        given(userRepository.findByUsername("ctps")).willReturn(Optional.empty());
-        given(passwordEncoder.encode("ctps1234")).willReturn("encoded-password");
+        given(userRepository.findByUsername("local-admin")).willReturn(Optional.empty());
+        given(passwordEncoder.encode("local-password-123")).willReturn("encoded-password");
         given(userRepository.save(any(User.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         service.ensureBootstrapUser();
 
-        verify(userRepository).findByUsername("ctps");
+        verify(userRepository).findByUsername("local-admin");
         verify(userRepository).save(any(User.class));
     }
 
@@ -74,7 +74,20 @@ class AuthBootstrapServiceTest {
 
         service.ensureBootstrapUser();
 
-        verify(userRepository, never()).findByUsername(eq("ctps"));
+        verify(userRepository, never()).findByUsername(eq("local-admin"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("bootstrap 자격증명이 비어 있으면 local 환경에서도 생성하지 않는다")
+    void ensureBootstrapUser_skipsWhenCredentialsAreBlank() {
+        AuthBootstrapService service = createService("local", "", "", true);
+        ReflectionTestUtils.setField(service, "bootstrapUsername", "");
+        ReflectionTestUtils.setField(service, "bootstrapPassword", "");
+
+        service.ensureBootstrapUser();
+
+        verify(userRepository, never()).findByUsername(any());
         verify(userRepository, never()).save(any());
     }
 }

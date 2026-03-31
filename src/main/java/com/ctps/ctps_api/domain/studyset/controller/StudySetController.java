@@ -45,7 +45,7 @@ public class StudySetController {
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<StudySetResponse>> updateStudySet(
             @PathVariable Long id,
-            @RequestBody StudySetUpdateRequest request
+            @Valid @RequestBody StudySetUpdateRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.success("공부 세트 수정 성공", studySetService.updateStudySet(id, request)));
     }

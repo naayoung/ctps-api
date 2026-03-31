@@ -43,6 +43,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login",
                         "/api/auth/signup",
+                        "/api/auth/signup/verify",
                         "/api/auth/username/recovery",
                         "/api/auth/password/reset/request",
                         "/api/auth/password/reset/confirm",
@@ -55,6 +56,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(
                         "/api/auth/login",
                         "/api/auth/signup",
+                        "/api/auth/signup/verify",
                         "/api/auth/username/recovery",
                         "/api/auth/password/reset/request",
                         "/api/auth/password/reset/confirm",
