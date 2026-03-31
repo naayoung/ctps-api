@@ -109,6 +109,10 @@ public class UnifiedSearchRankingService {
             return 6;
         }
 
+        if (containsKeywordInTags(item, query)) {
+            return 4;
+        }
+
         String description = normalize(item.getSummary()) + " " + normalize(item.getDescription());
         return query.getKeywordTokens().stream().anyMatch(description::contains) ? 3 : 0;
     }
@@ -175,6 +179,24 @@ public class UnifiedSearchRankingService {
                 .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}\\s]", " ")
                 .replaceAll("\\s+", " ")
                 .trim();
+    }
+
+    private boolean containsKeywordInTags(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
+        if (item.getTags() == null || item.getTags().isEmpty()) {
+            return false;
+        }
+
+        List<String> normalizedTags = item.getTags().stream()
+                .map(this::normalize)
+                .filter(StringUtils::hasText)
+                .toList();
+
+        if (normalizedTags.stream().anyMatch(tag -> tag.contains(query.getNormalizedKeyword()))) {
+            return true;
+        }
+
+        return query.getKeywordTokens().stream()
+                .anyMatch(token -> normalizedTags.stream().anyMatch(tag -> tag.contains(token)));
     }
 
     private String safeLower(String value) {

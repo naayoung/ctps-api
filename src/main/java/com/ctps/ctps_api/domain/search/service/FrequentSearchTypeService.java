@@ -56,7 +56,7 @@ public class FrequentSearchTypeService {
 
         boolean hasEnoughData = interactionEvents.size() >= MIN_INTERACTION_EVENTS;
         List<FrequentSearchTypeItemResponse> items = hasEnoughData
-                ? rankTypes(interactionEvents, searchEvents, now)
+                ? rankTypes(interactionEvents, List.of(), now)
                 : List.of();
         List<FrequentSearchTypeItemResponse> focusedItems = hasEnoughData
                 ? rankTypes(
@@ -131,7 +131,8 @@ public class FrequentSearchTypeService {
 
         return buckets.values().stream()
                 .sorted(Comparator
-                        .comparingDouble(ScoreBucket::score).reversed()
+                        .comparingInt(ScoreBucket::evidenceCount).reversed()
+                        .thenComparing(ScoreBucket::score, Comparator.reverseOrder())
                         .thenComparing(ScoreBucket::latestAt, Comparator.reverseOrder())
                         .thenComparing(ScoreBucket::label))
                 .limit(MAX_ITEMS)

@@ -45,7 +45,7 @@ class FrequentSearchTypeServiceTest {
     }
 
     @Test
-    @DisplayName("최근 클릭과 조회, 보조 검색 신호를 합산해 상위 유형 3개를 반환한다")
+    @DisplayName("문제 상호작용 카운트와 점수를 기준으로 상위 유형 3개를 반환한다")
     void getFrequentTypes_returnsTopRankedItems() {
         CurrentUserContext.set(AuthenticatedUser.builder()
                 .id(7L)
@@ -81,12 +81,13 @@ class FrequentSearchTypeServiceTest {
         assertThat(response.getItems()).hasSize(3);
         assertThat(response.getItems().get(0).getType()).isEqualTo(FrequentSearchTypeItemResponse.Type.TAG);
         assertThat(response.getItems().get(0).getLabel()).isEqualTo("그래프");
-        assertThat(response.getItems().get(0).getScore()).isEqualTo(12.0);
-        assertThat(response.getItems().get(0).getEvidenceCount()).isEqualTo(4);
+        assertThat(response.getItems().get(0).getScore()).isEqualTo(10.5);
+        assertThat(response.getItems().get(0).getEvidenceCount()).isEqualTo(3);
         assertThat(response.getItems().get(1).getLabel()).isEqualTo("보통");
-        assertThat(response.getItems().get(1).getScore()).isEqualTo(12.0);
+        assertThat(response.getItems().get(1).getScore()).isEqualTo(10.5);
+        assertThat(response.getItems().get(1).getEvidenceCount()).isEqualTo(3);
         assertThat(response.getItems().get(2).getLabel()).isEqualTo("구현");
-        assertThat(response.getItems().get(2).getScore()).isEqualTo(6.0);
+        assertThat(response.getItems().get(2).getScore()).isEqualTo(5.0);
         assertThat(response.getFocusedItems()).isNotEmpty();
         assertThat(response.getFocusedItems().get(0).getLabel()).isEqualTo("그래프");
         assertThat(response.getReviewNeededItems()).hasSize(2);
@@ -119,6 +120,48 @@ class FrequentSearchTypeServiceTest {
 
         assertThat(response.isHasEnoughData()).isFalse();
         assertThat(response.getItems()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("자주 찾는 유형은 검색어 이벤트를 제외하고 실제 상호작용 카운트를 우선한다")
+    void getFrequentTypes_usesInteractionCountsWithoutSearchEvents() {
+        CurrentUserContext.set(AuthenticatedUser.builder()
+                .id(11L)
+                .username("tester")
+                .displayName("테스터")
+                .build());
+
+        LocalDateTime now = LocalDateTime.now(clock);
+        given(problemInteractionEventRepository.findAllByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+                Mockito.eq(11L),
+                Mockito.any(LocalDateTime.class)
+        )).willReturn(List.of(
+                interaction("301", List.of("그래프"), Problem.Difficulty.easy,
+                        ProblemInteractionEvent.EventType.SEARCH_CLICK, now.minusDays(1)),
+                interaction("302", List.of("그래프"), Problem.Difficulty.medium,
+                        ProblemInteractionEvent.EventType.DETAIL_VIEW, now.minusDays(2)),
+                interaction("303", List.of("구현"), Problem.Difficulty.hard,
+                        ProblemInteractionEvent.EventType.BOOKMARK, now.minusHours(1))
+        ));
+        given(searchEventRepository.findAllByUserIdAndCreatedAtGreaterThanEqualOrderByCreatedAtDesc(
+                Mockito.eq(11L),
+                Mockito.any(LocalDateTime.class)
+        )).willReturn(List.of(
+                search("구현", now.minusHours(2))
+        ));
+
+        var response = frequentSearchTypeService.getFrequentTypes();
+
+        assertThat(response.getItems()).hasSizeGreaterThanOrEqualTo(2);
+        assertThat(response.getItems().get(0).getLabel()).isEqualTo("그래프");
+        assertThat(response.getItems().get(0).getEvidenceCount()).isEqualTo(2);
+        assertThat(response.getItems().stream()
+                .filter(item -> item.getLabel().equals("구현"))
+                .findFirst())
+                .isPresent()
+                .get()
+                .extracting(FrequentSearchTypeItemResponse::getEvidenceCount)
+                .isEqualTo(1);
     }
 
     private ProblemInteractionEvent interaction(

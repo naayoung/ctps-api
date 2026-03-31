@@ -106,14 +106,57 @@ class UnifiedSearchServiceTest {
         assertThat(response.getExternalWarning()).isNotBlank();
     }
 
+    @Test
+    @DisplayName("제목 일치 결과가 적으면 같은 키워드 태그가 붙은 내부 문제도 첫 페이지에 포함한다")
+    void search_keepsTagMatchedInternalItemsNearTitleMatches() throws Exception {
+        ProblemSearchRequest request = new ProblemSearchRequest();
+        setField(request, "keyword", "사칙연산");
+        setField(request, "page", 0);
+        setField(request, "size", 5);
+
+        given(problemSearchService.search(Mockito.any())).willReturn(ProblemSearchResponse.builder()
+                .content(List.of(
+                        internal("internal-title", "사칙연산"),
+                        internal("internal-tag", "수식 처리", List.of("사칙연산", "구현"))
+                ))
+                .page(0)
+                .size(15)
+                .totalElements(2)
+                .totalPages(1)
+                .hasNext(false)
+                .build());
+
+        given(externalProblemSearchService.search(Mockito.any())).willReturn(ExternalProblemSearchResponse.builder()
+                .content(List.of(
+                        external("external-1", "연산자 끼워넣기"),
+                        external("external-2", "계산기 구현")
+                ))
+                .page(0)
+                .size(15)
+                .totalElements(2)
+                .totalPages(1)
+                .hasNext(false)
+                .failedProviders(List.of())
+                .build());
+
+        var response = unifiedSearchService.search(request);
+
+        assertThat(response.getItems()).extracting(item -> item.getId())
+                .startsWith("internal-title", "internal-tag");
+    }
+
     private ProblemSearchItemResponse internal(String id, String title) {
+        return internal(id, title, List.of("그래프"));
+    }
+
+    private ProblemSearchItemResponse internal(String id, String title, List<String> tags) {
         return ProblemSearchItemResponse.builder()
                 .id(id)
                 .title(title)
                 .platform("백준")
                 .problemNumber(id)
                 .difficulty(Problem.Difficulty.medium)
-                .tags(List.of("그래프"))
+                .tags(tags)
                 .result(Problem.Result.success)
                 .needsReview(false)
                 .bookmarked(false)

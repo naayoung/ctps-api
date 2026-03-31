@@ -45,6 +45,17 @@ class SearchIntentAnalyzerTest {
         assertThat(analyzer.resolveCanonicalTags(request)).containsExactly("구현");
     }
 
+    @Test
+    @DisplayName("플랫폼명과 보조 단어가 섞인 keyword는 제거하고 핵심 태그만 추출한다")
+    void stripsPlatformAndNoiseWordsBeforeTagInference() throws Exception {
+        ProblemSearchRequest request = new ProblemSearchRequest();
+        setField(request, "keyword", "프로그래머스 구현 문제");
+
+        assertThat(analyzer.isTagOnlySearch(request)).isTrue();
+        assertThat(analyzer.resolveKeywordText(request)).isBlank();
+        assertThat(analyzer.resolveCanonicalTags(request)).containsExactly("구현");
+    }
+
     private void setField(Object target, String fieldName, Object value) throws Exception {
         Field field = target.getClass().getDeclaredField(fieldName);
         field.setAccessible(true);
