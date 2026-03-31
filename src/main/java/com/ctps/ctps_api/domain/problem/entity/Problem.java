@@ -197,4 +197,13 @@ public class Problem {
             this.reviewHistory.add(reviewedDate);
         }
     }
+
+    public void updateLatestOutcome(Result result, String memo) {
+        if (result != null) {
+            this.result = result;
+        }
+        if (memo != null) {
+            this.memo = memo;
+        }
+    }
 }

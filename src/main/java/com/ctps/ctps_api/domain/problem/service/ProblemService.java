@@ -16,16 +16,17 @@ import com.ctps.ctps_api.domain.problem.repository.ProblemSolveHistoryRepository
 import com.ctps.ctps_api.domain.review.entity.Review;
 import com.ctps.ctps_api.domain.review.repository.ReviewHistoryRepository;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
+import com.ctps.ctps_api.domain.review.service.ReviewDateAggregationHelper;
 import com.ctps.ctps_api.domain.search.service.SearchActivityService;
 import com.ctps.ctps_api.global.exception.NotFoundException;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
+import com.ctps.ctps_api.global.time.DateTimeSupport;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,8 +42,10 @@ public class ProblemService {
     private final ReviewRepository reviewRepository;
     private final ReviewHistoryRepository reviewHistoryRepository;
     private final ProblemSolveHistoryRepository problemSolveHistoryRepository;
+    private final ProblemActivityService problemActivityService;
     private final SearchActivityService searchActivityService;
     private final ProblemMetadataService problemMetadataService;
+    private final Clock clock;
 
     @Transactional
     public ProblemResponse createProblem(ProblemCreateRequest request) {
@@ -73,7 +76,7 @@ public class ProblemService {
                 .needsReview(request.isNeedsReview())
                 .reviewedAt(request.getReviewedAt())
                 .reviewHistory(request.getReviewHistory())
-                .createdAt(LocalDateTime.now())
+                .createdAt(DateTimeSupport.nowUtc(clock))
                 .solvedDates(request.getSolvedDates())
                 .solveHistory(resolveSolveHistory(request.getSolveHistory(), request.getSolvedDates()))
                 .lastSolvedAt(request.getLastSolvedAt())
@@ -82,7 +85,13 @@ public class ProblemService {
         normalizeReviewEligibility(problem);
 
         Problem saved = problemRepository.save(problem);
-        recordSolveHistoryEntries(saved, List.of(), saved.getSolveHistory(), request.getResult(), request.getMemo());
+        problemActivityService.recordSolveAttempts(
+                saved,
+                List.of(),
+                saved.getSolveHistory(),
+                request.getResult(),
+                request.getMemo()
+        );
         syncReviewState(saved);
         if (saved.isBookmarked()) {
             searchActivityService.recordBookmarkEvent(saved);
@@ -114,10 +123,17 @@ public class ProblemService {
         );
 
         if (entries.isEmpty()) {
-            entries = resolveSolveHistory(problem).stream()
-                    .sorted(Comparator.reverseOrder())
-                    .map(ProblemSolveHistoryItemResponse::fallback)
-                    .toList();
+            if (problem.getSolveHistory() != null && !problem.getSolveHistory().isEmpty()) {
+                entries = problem.getSolveHistory().stream()
+                        .sorted(Comparator.reverseOrder())
+                        .map(ProblemSolveHistoryItemResponse::fallback)
+                        .toList();
+            } else {
+                entries = (problem.getSolvedDates() == null ? List.<LocalDate>of() : problem.getSolvedDates()).stream()
+                        .sorted(Comparator.reverseOrder())
+                        .map(ProblemSolveHistoryItemResponse::fallback)
+                        .toList();
+            }
         }
 
         return ProblemSolveHistoryResponse.builder()
@@ -158,7 +174,7 @@ public class ProblemService {
             problem.markReviewRequired();
         }
         normalizeReviewEligibility(problem);
-        recordSolveHistoryEntries(
+        problemActivityService.recordSolveAttempts(
                 problem,
                 previousSolveHistory,
                 resolveSolveHistory(problem),
@@ -298,67 +314,9 @@ public class ProblemService {
         return resolveSolveHistory(problem.getSolveHistory(), problem.getSolvedDates());
     }
 
-    private void recordSolveHistoryEntries(
-            Problem problem,
-            List<LocalDateTime> previousSolveHistory,
-            List<LocalDateTime> currentSolveHistory,
-            Problem.Result result,
-            String memo
-    ) {
-        if (result == null || currentSolveHistory == null || currentSolveHistory.isEmpty()) {
-            return;
-        }
-
-        Map<LocalDateTime, Integer> previousCounts = toCountMap(previousSolveHistory);
-        List<ProblemSolveHistoryEntry> newEntries = currentSolveHistory.stream()
-                .filter(solvedAt -> {
-                    int remaining = previousCounts.getOrDefault(solvedAt, 0);
-                    if (remaining > 0) {
-                        previousCounts.put(solvedAt, remaining - 1);
-                        return false;
-                    }
-                    return true;
-                })
-                .map(solvedAt -> ProblemSolveHistoryEntry.builder()
-                        .problem(problem)
-                        .user(problem.getUser())
-                        .result(result)
-                        .memo(memo == null ? "" : memo)
-                        .solvedAt(solvedAt)
-                        .createdAt(LocalDateTime.now())
-                        .build())
-                .toList();
-
-        if (!newEntries.isEmpty()) {
-            problemSolveHistoryRepository.saveAll(newEntries);
-        }
-    }
-
-    private Map<LocalDateTime, Integer> toCountMap(List<LocalDateTime> history) {
-        Map<LocalDateTime, Integer> counts = new HashMap<>();
-        if (history == null) {
-            return counts;
-        }
-
-        for (LocalDateTime solvedAt : history) {
-            counts.merge(solvedAt, 1, Integer::sum);
-        }
-        return counts;
-    }
-
     private int countReviewsSinceLatestSolve(Problem problem) {
-        if (problem.getReviewHistory() == null || problem.getReviewHistory().isEmpty()) {
-            return 0;
-        }
-
         LocalDate latestSolvedDate = problem.getLastSolvedAt();
-        if (latestSolvedDate == null) {
-            return problem.getReviewHistory().size();
-        }
-
-        return (int) problem.getReviewHistory().stream()
-                .filter(reviewedDate -> !reviewedDate.isBefore(latestSolvedDate))
-                .count();
+        return (int) ReviewDateAggregationHelper.countDistinctDatesSince(problem.getReviewHistory(), latestSolvedDate);
     }
 
     private LocalDate resolveCycleLastReviewedDate(Problem problem, LocalDate latestSolvedDate, LocalDate fallbackDate) {

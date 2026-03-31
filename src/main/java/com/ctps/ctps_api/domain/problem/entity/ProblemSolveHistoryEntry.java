@@ -24,6 +24,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ProblemSolveHistoryEntry {
 
+    public enum ActivityType {
+        solve,
+        review
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -35,6 +40,10 @@ public class ProblemSolveHistoryEntry {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private ActivityType activityType;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
@@ -53,6 +62,7 @@ public class ProblemSolveHistoryEntry {
     public ProblemSolveHistoryEntry(
             Problem problem,
             User user,
+            ActivityType activityType,
             Problem.Result result,
             String memo,
             LocalDateTime solvedAt,
@@ -60,6 +70,7 @@ public class ProblemSolveHistoryEntry {
     ) {
         this.problem = problem;
         this.user = user;
+        this.activityType = activityType == null ? ActivityType.solve : activityType;
         this.result = result;
         this.memo = memo;
         this.solvedAt = solvedAt;

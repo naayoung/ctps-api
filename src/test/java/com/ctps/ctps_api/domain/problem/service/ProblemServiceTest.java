@@ -22,8 +22,12 @@ import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.domain.search.service.SearchActivityService;
 import com.ctps.ctps_api.global.security.AuthenticatedUser;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -57,10 +62,16 @@ class ProblemServiceTest {
     private ProblemSolveHistoryRepository problemSolveHistoryRepository;
 
     @Mock
+    private ProblemActivityService problemActivityService;
+
+    @Mock
     private SearchActivityService searchActivityService;
 
     @Mock
     private ProblemMetadataService problemMetadataService;
+
+    @Spy
+    private Clock clock = Clock.fixed(Instant.parse("2026-03-31T13:15:00Z"), ZoneOffset.UTC);
 
     @InjectMocks
     private ProblemService problemService;
@@ -129,7 +140,6 @@ class ProblemServiceTest {
         assertThat(response.getTitle()).isEqualTo("미로 탐색");
         assertThat(response.getTags()).containsExactly("그래프", "BFS");
         assertThat(response.getDifficulty()).isNull();
-        verify(problemSolveHistoryRepository, never()).saveAll(any());
     }
 
     @Test
@@ -262,8 +272,8 @@ class ProblemServiceTest {
         assertThat(response.getSolveCount()).isEqualTo(2);
         assertThat(response.getSolveHistory())
                 .containsExactly(
-                        LocalDate.of(2026, 3, 20).atStartOfDay(),
-                        LocalDate.of(2026, 3, 29).atStartOfDay()
+                        OffsetDateTime.parse("2026-03-20T00:00:00+09:00"),
+                        OffsetDateTime.parse("2026-03-29T00:00:00+09:00")
                 );
     }
 
@@ -428,11 +438,19 @@ class ProblemServiceTest {
 
         problemService.updateProblem(50L, request);
 
-        ArgumentCaptor<List<ProblemSolveHistoryEntry>> historyCaptor = ArgumentCaptor.forClass(List.class);
-        verify(problemSolveHistoryRepository).saveAll(historyCaptor.capture());
-        assertThat(historyCaptor.getValue()).hasSize(1);
-        assertThat(historyCaptor.getValue().get(0).getMemo()).isEqualTo("다시 풀면서 남긴 메모");
-        assertThat(historyCaptor.getValue().get(0).getSolvedAt()).isEqualTo(LocalDate.of(2026, 3, 30).atTime(21, 15));
+        ArgumentCaptor<List<LocalDateTime>> historyCaptor = ArgumentCaptor.forClass(List.class);
+        verify(problemActivityService).recordSolveAttempts(
+                eq(problem),
+                any(),
+                historyCaptor.capture(),
+                eq(Problem.Result.success),
+                eq("다시 풀면서 남긴 메모")
+        );
+        assertThat(historyCaptor.getValue())
+                .containsExactly(
+                        LocalDate.of(2026, 3, 20).atStartOfDay(),
+                        LocalDate.of(2026, 3, 30).atTime(21, 15)
+                );
     }
 
     @Test
@@ -473,7 +491,7 @@ class ProblemServiceTest {
 
         assertThat(response.getTotalSolveCount()).isEqualTo(2);
         assertThat(response.getEntries()).hasSize(2);
-        assertThat(response.getEntries().get(0).getSolvedAt()).isEqualTo(LocalDate.of(2026, 3, 30).atTime(21, 15));
+        assertThat(response.getEntries().get(0).getSolvedAt()).isEqualTo(OffsetDateTime.parse("2026-03-30T21:15:00Z"));
         assertThat(response.getEntries().get(0).isMetadataFallback()).isTrue();
     }
 

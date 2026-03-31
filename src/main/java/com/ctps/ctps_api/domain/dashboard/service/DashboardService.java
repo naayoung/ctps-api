@@ -5,6 +5,7 @@ import com.ctps.ctps_api.domain.dashboard.dto.DashboardTagStatResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
 import com.ctps.ctps_api.domain.review.repository.ReviewHistoryRepository;
+import com.ctps.ctps_api.domain.review.service.ReviewDateAggregationHelper;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -31,11 +32,18 @@ public class DashboardService {
         LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
         LocalDate monthStart = today.withDayOfMonth(1);
 
-        long reviewsCompletedThisWeek = reviewHistoryRepository.countByUserIdAndReviewedAtBetween(userId, weekStart, today);
-        long reviewsCompletedThisMonth = reviewHistoryRepository.countByUserIdAndReviewedAtBetween(userId, monthStart, today);
+        long reviewsCompletedThisWeek = ReviewDateAggregationHelper.countDistinctProblemDates(
+                reviewHistoryRepository.findAllByUserIdAndReviewedAtBetween(userId, weekStart, today)
+        );
+        long reviewsCompletedThisMonth = ReviewDateAggregationHelper.countDistinctProblemDates(
+                reviewHistoryRepository.findAllByUserIdAndReviewedAtBetween(userId, monthStart, today)
+        );
         double averageReviewCount = problems.isEmpty()
                 ? 0
-                : problems.stream().mapToInt(problem -> problem.getReviewHistory().size()).average().orElse(0);
+                : problems.stream()
+                        .mapToInt(problem -> (int) ReviewDateAggregationHelper.countDistinctDates(problem.getReviewHistory()))
+                        .average()
+                        .orElse(0);
 
         Map<String, Long> tagCounts = problems.stream()
                 .flatMap(problem -> problem.getTags().stream())

@@ -1,8 +1,10 @@
 package com.ctps.ctps_api.domain.problem.dto;
 
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.global.time.DateTimeSupport;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
@@ -24,15 +26,15 @@ public class ProblemResponse {
     private boolean needsReview;
     private LocalDate reviewedAt;
     private List<LocalDate> reviewHistory;
-    private LocalDateTime createdAt;
+    private OffsetDateTime createdAt;
     private List<LocalDate> solvedDates;
-    private List<LocalDateTime> solveHistory;
+    private List<OffsetDateTime> solveHistory;
     private int solveCount;
     private LocalDate lastSolvedAt;
     private boolean bookmarked;
 
     public static ProblemResponse from(Problem problem) {
-        List<LocalDateTime> solveHistory = resolveSolveHistory(problem);
+        List<OffsetDateTime> solveHistory = resolveSolveHistory(problem);
         return ProblemResponse.builder()
                 .id(String.valueOf(problem.getId()))
                 .platform(problem.getPlatform())
@@ -46,7 +48,7 @@ public class ProblemResponse {
                 .needsReview(problem.isNeedsReview())
                 .reviewedAt(problem.getReviewedAt())
                 .reviewHistory(problem.getReviewHistory() == null ? List.of() : new ArrayList<>(problem.getReviewHistory()))
-                .createdAt(problem.getCreatedAt())
+                .createdAt(DateTimeSupport.asUtcOffsetDateTime(problem.getCreatedAt()))
                 .solvedDates(problem.getSolvedDates() == null ? List.of() : new ArrayList<>(problem.getSolvedDates()))
                 .solveHistory(solveHistory)
                 .solveCount(solveHistory.size())
@@ -55,9 +57,11 @@ public class ProblemResponse {
                 .build();
     }
 
-    private static List<LocalDateTime> resolveSolveHistory(Problem problem) {
+    private static List<OffsetDateTime> resolveSolveHistory(Problem problem) {
         if (problem.getSolveHistory() != null && !problem.getSolveHistory().isEmpty()) {
-            return new ArrayList<>(problem.getSolveHistory());
+            return problem.getSolveHistory().stream()
+                    .map(DateTimeSupport::asUtcOffsetDateTime)
+                    .toList();
         }
 
         if (problem.getSolvedDates() == null || problem.getSolvedDates().isEmpty()) {
@@ -65,7 +69,7 @@ public class ProblemResponse {
         }
 
         return problem.getSolvedDates().stream()
-                .map(LocalDate::atStartOfDay)
+                .map(DateTimeSupport::asSeoulStartOfDay)
                 .toList();
     }
 }

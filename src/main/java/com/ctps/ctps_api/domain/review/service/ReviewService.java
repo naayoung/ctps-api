@@ -2,6 +2,8 @@ package com.ctps.ctps_api.domain.review.service;
 
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
+import com.ctps.ctps_api.domain.problem.service.ProblemActivityService;
+import com.ctps.ctps_api.domain.review.dto.ReviewCheckRequest;
 import com.ctps.ctps_api.domain.review.dto.ReviewCheckResponse;
 import com.ctps.ctps_api.domain.review.dto.ReviewHistoryItemResponse;
 import com.ctps.ctps_api.domain.review.dto.ReviewHistoryResponse;
@@ -13,6 +15,8 @@ import com.ctps.ctps_api.domain.review.repository.ReviewHistoryRepository;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.global.exception.NotFoundException;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
+import com.ctps.ctps_api.global.time.DateTimeSupport;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -30,45 +34,69 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ReviewHistoryRepository reviewHistoryRepository;
     private final ProblemRepository problemRepository;
+    private final ProblemActivityService problemActivityService;
     private final ReviewSchedulePolicy reviewSchedulePolicy;
+    private final Clock clock;
 
     @Transactional
-    public ReviewCheckResponse checkReview(Long problemId) {
+    public ReviewCheckResponse checkReview(Long problemId, ReviewCheckRequest request) {
         Long userId = CurrentUserContext.getRequired().getId();
         Problem problem = problemRepository.findByIdAndUserId(problemId, userId)
                 .orElseThrow(() -> new NotFoundException("문제를 찾을 수 없습니다. id=" + problemId));
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = DateTimeSupport.todayInSeoul(clock);
+        LocalDateTime completedAt = DateTimeSupport.nowUtc(clock);
         Review review = reviewRepository.findByProblemIdAndProblemUserId(problemId, userId)
                 .orElseGet(() -> reviewRepository.save(Review.builder()
                         .problem(problem)
                         .reviewCount(countReviewsSinceLatestSolve(problem))
                         .lastReviewedDate(resolveCycleLastReviewedDate(problem, today))
-                        .nextReviewDate(today)
+                        .nextReviewDate(resolveNextReviewDate(problem, today))
                         .build()));
 
-        int nextReviewCount = review.getReviewCount() + 1;
-        int intervalDays = reviewSchedulePolicy.resolveIntervalDays(nextReviewCount);
-        LocalDate nextReviewDate = reviewSchedulePolicy.calculateNextReviewDate(nextReviewCount, today);
+        boolean alreadyReviewedToday = today.equals(review.getLastReviewedDate()) && review.getReviewCount() > 0;
+        int reviewCountAfterCheck;
+        int intervalDays;
+        LocalDate nextReviewDate;
 
-        review.completeReview(today, nextReviewDate);
+        if (alreadyReviewedToday) {
+            reviewCountAfterCheck = review.getReviewCount();
+            nextReviewDate = review.getNextReviewDate();
+            intervalDays = (int) Math.max(0, ChronoUnit.DAYS.between(today, nextReviewDate));
+        } else {
+            int nextReviewCount = review.getReviewCount() + 1;
+            intervalDays = reviewSchedulePolicy.resolveIntervalDays(nextReviewCount);
+            nextReviewDate = reviewSchedulePolicy.calculateNextReviewDate(nextReviewCount, today);
+            review.completeReview(today, nextReviewDate);
+            reviewCountAfterCheck = review.getReviewCount();
+        }
+
+        if (request != null) {
+            problem.updateLatestOutcome(request.getResult(), request.getMemo());
+        }
         problem.markReviewCompleted(today);
         reviewHistoryRepository.save(ReviewHistoryEntry.builder()
                 .review(review)
                 .problem(problem)
                 .user(problem.getUser())
-                .reviewCountAfterCheck(review.getReviewCount())
+                .reviewCountAfterCheck(reviewCountAfterCheck)
                 .intervalDays(intervalDays)
                 .reviewedAt(today)
                 .nextReviewDate(nextReviewDate)
-                .createdAt(LocalDateTime.now())
+                .createdAt(completedAt)
                 .build());
+        problemActivityService.recordReviewCompletion(
+                problem,
+                request == null ? problem.getResult() : request.getResult(),
+                request == null ? problem.getMemo() : request.getMemo(),
+                completedAt
+        );
 
         return ReviewCheckResponse.builder()
                 .problemId(problemId)
-                .reviewCount(review.getReviewCount())
+                .reviewCount(reviewCountAfterCheck)
                 .lastReviewedDate(review.getLastReviewedDate())
-                .nextReviewDate(review.getNextReviewDate())
+                .nextReviewDate(nextReviewDate)
                 .intervalDays(intervalDays)
                 .build();
     }
@@ -102,30 +130,28 @@ public class ReviewService {
         List<ReviewHistoryItemResponse> entries = reviewHistoryRepository
                 .findAllByProblemIdAndUserIdOrderByReviewedAtDesc(problemId, userId)
                 .stream()
+                .collect(java.util.stream.Collectors.collectingAndThen(
+                        java.util.stream.Collectors.toList(),
+                        ReviewDateAggregationHelper::aggregateByDate
+                ))
+                .stream()
                 .map(ReviewHistoryItemResponse::from)
                 .toList();
 
         return ReviewHistoryResponse.builder()
                 .problemId(problemId)
                 .problemTitle(problem.getTitle())
-                .totalReviewCount(entries.size())
+                .totalReviewCount((int) entries.stream()
+                        .map(ReviewHistoryItemResponse::getReviewedAt)
+                        .distinct()
+                        .count())
                 .entries(entries)
                 .build();
     }
 
     private int countReviewsSinceLatestSolve(Problem problem) {
-        if (problem.getReviewHistory() == null || problem.getReviewHistory().isEmpty()) {
-            return 0;
-        }
-
         LocalDate latestSolvedDate = problem.getLastSolvedAt();
-        if (latestSolvedDate == null) {
-            return problem.getReviewHistory().size();
-        }
-
-        return (int) problem.getReviewHistory().stream()
-                .filter(reviewedDate -> !reviewedDate.isBefore(latestSolvedDate))
-                .count();
+        return (int) ReviewDateAggregationHelper.countDistinctDatesSince(problem.getReviewHistory(), latestSolvedDate);
     }
 
     private LocalDate resolveCycleLastReviewedDate(Problem problem, LocalDate fallbackDate) {
@@ -147,5 +173,14 @@ public class ReviewService {
         }
 
         return fallbackDate;
+    }
+
+    private LocalDate resolveNextReviewDate(Problem problem, LocalDate fallbackDate) {
+        int reviewCount = countReviewsSinceLatestSolve(problem);
+        LocalDate lastReviewedDate = resolveCycleLastReviewedDate(problem, fallbackDate);
+        if (reviewCount <= 0) {
+            return fallbackDate;
+        }
+        return reviewSchedulePolicy.calculateNextReviewDate(reviewCount, lastReviewedDate);
     }
 }

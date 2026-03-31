@@ -1,10 +1,12 @@
 package com.ctps.ctps_api.domain.review.controller;
 
+import com.ctps.ctps_api.domain.review.dto.ReviewCheckRequest;
 import com.ctps.ctps_api.domain.review.dto.ReviewCheckResponse;
 import com.ctps.ctps_api.domain.review.dto.ReviewHistoryResponse;
 import com.ctps.ctps_api.domain.review.dto.TodayReviewResponse;
 import com.ctps.ctps_api.domain.review.service.ReviewService;
 import com.ctps.ctps_api.global.response.ApiResponse;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,8 +28,11 @@ public class ReviewController {
     private final ReviewService reviewService;
 
     @PostMapping("/{problemId}/check")
-    public ResponseEntity<ApiResponse<ReviewCheckResponse>> checkReview(@PathVariable Long problemId) {
-        ReviewCheckResponse response = reviewService.checkReview(problemId);
+    public ResponseEntity<ApiResponse<ReviewCheckResponse>> checkReview(
+            @PathVariable Long problemId,
+            @Valid @RequestBody(required = false) ReviewCheckRequest request
+    ) {
+        ReviewCheckResponse response = reviewService.checkReview(problemId, request);
         return ResponseEntity.ok(ApiResponse.success("복습 등록 성공", response));
     }
 
