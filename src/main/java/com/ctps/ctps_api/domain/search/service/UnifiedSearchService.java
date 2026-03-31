@@ -2,113 +2,118 @@ package com.ctps.ctps_api.domain.search.service;
 
 import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
-import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchResponse;
 import com.ctps.ctps_api.domain.problem.service.ExternalProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.ProblemSearchService;
 import com.ctps.ctps_api.domain.problem.service.search.ProcessedSearchQuery;
 import com.ctps.ctps_api.domain.problem.service.search.SearchQueryPreprocessor;
+import com.ctps.ctps_api.domain.search.dto.SearchRankingType;
+import com.ctps.ctps_api.domain.search.dto.UnifiedSearchDebugResponse;
 import com.ctps.ctps_api.domain.search.dto.UnifiedSearchItemResponse;
 import com.ctps.ctps_api.domain.search.dto.UnifiedSearchResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class UnifiedSearchService {
 
     private final ProblemSearchService problemSearchService;
     private final ExternalProblemSearchService externalProblemSearchService;
     private final SearchQueryPreprocessor searchQueryPreprocessor;
-    private final UnifiedSearchResponseMapper responseMapper;
+    private final SearchCandidateCollector searchCandidateCollector;
     private final UnifiedSearchRankingService rankingService;
+    private final UserPreferenceAnalyzer userPreferenceAnalyzer;
+    private final SearchResultAssembler searchResultAssembler;
 
     public UnifiedSearchResponse search(ProblemSearchRequest request) {
-        int aggregateSize = Math.max((request.getPage() + 1) * request.getSize() * 3, 30);
+        int targetSize = Math.min(request.getSize(), 15);
+        int aggregateSize = Math.max(targetSize * 3, 30);
         ProblemSearchRequest aggregateRequest = request.copyWithPageAndSize(0, aggregateSize);
         ProcessedSearchQuery processedQuery = searchQueryPreprocessor.process(aggregateRequest);
+        UserPreferenceProfile preferenceProfile = userPreferenceAnalyzer.analyze();
 
-        ProblemSearchResponse internalResponse = problemSearchService.search(aggregateRequest);
+        SearchCandidateCollector.CandidateCollection candidates = searchCandidateCollector.collect(
+                aggregateRequest,
+                processedQuery,
+                preferenceProfile,
+                aggregateSize,
+                targetSize
+        );
+
+        List<UnifiedSearchRankingResult> ranked = rankingService.rank(
+                candidates,
+                processedQuery,
+                request.getSortOption(),
+                preferenceProfile,
+                request.isDebugEnabled()
+        );
+        List<UnifiedSearchRankingResult> assembled = searchResultAssembler.assemble(ranked, targetSize);
+        List<UnifiedSearchItemResponse> pageItems = assembled.stream().map(UnifiedSearchRankingResult::getItem).toList();
+        UnifiedSearchDebugResponse debugResponse = request.isDebugEnabled()
+                ? buildDebugResponse(candidates, ranked, pageItems)
+                : null;
+
+        int totalElements = pageItems.size();
+        int totalPages = totalElements == 0 ? 0 : 1;
         ExternalProblemSearchResponse externalResponse = externalProblemSearchService.search(aggregateRequest);
 
-        List<UnifiedSearchItemResponse> candidates = new ArrayList<>();
-        internalResponse.getContent().stream().map(responseMapper::fromInternal).forEach(candidates::add);
-        externalResponse.getContent().stream().map(responseMapper::fromExternal).forEach(candidates::add);
-
-        List<UnifiedSearchRankingResult> ranked = rankingService.rank(candidates, processedQuery, request.getSortOption());
-        List<UnifiedSearchItemResponse> orderedItems = orderPageCandidates(ranked, request);
-        int start = request.getPage() * request.getSize();
-        int end = Math.min(start + request.getSize(), orderedItems.size());
-        List<UnifiedSearchItemResponse> pageItems = start >= orderedItems.size()
-                ? List.of()
-                : orderedItems.subList(start, end);
-
-        long totalElements = internalResponse.getTotalElements() + externalResponse.getTotalElements();
-        int totalPages = totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / request.getSize());
+        if (request.isDebugEnabled()) {
+            log.info(
+                    "unified search debug keyword='{}' exactCandidates={} partialCandidates={} fallbackCandidates={} deduplicated={} rankingTypes={}",
+                    request.getKeyword(),
+                    debugResponse.getExactCandidatesCount(),
+                    debugResponse.getPartialCandidatesCount(),
+                    debugResponse.getFallbackCandidatesCount(),
+                    debugResponse.getDeduplicatedCount(),
+                    debugResponse.getRankingTypeCounts()
+            );
+        }
 
         return UnifiedSearchResponse.builder()
                 .query(processedQuery.getRawKeyword())
                 .normalizedTokens(processedQuery.getKeywordTokens())
-                .page(request.getPage())
-                .size(request.getSize())
+                .page(0)
+                .size(targetSize)
                 .totalElements(totalElements)
                 .totalPages(totalPages)
-                .hasNext((long) (request.getPage() + 1) * request.getSize() < totalElements)
-                .internalCount((int) Math.min(Integer.MAX_VALUE, internalResponse.getTotalElements()))
+                .hasNext(false)
+                .internalCount((int) candidates.getExactCandidates().stream()
+                        .filter(item -> item.getSource() == com.ctps.ctps_api.domain.search.dto.SearchItemSource.INTERNAL)
+                        .count())
                 .externalCount((int) Math.min(Integer.MAX_VALUE, externalResponse.getTotalElements()))
                 .failedExternalProviders(externalResponse.getFailedProviders())
                 .externalWarning(externalResponse.getWarningMessage())
                 .items(pageItems)
+                .debug(debugResponse)
                 .build();
     }
 
-    private List<UnifiedSearchItemResponse> orderPageCandidates(
+    private UnifiedSearchDebugResponse buildDebugResponse(
+            SearchCandidateCollector.CandidateCollection candidates,
             List<UnifiedSearchRankingResult> ranked,
-            ProblemSearchRequest request
+            List<UnifiedSearchItemResponse> pageItems
     ) {
-        if (request.getSortOption() != com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption.RELEVANCE) {
-            return ranked.stream().map(UnifiedSearchRankingResult::getItem).toList();
-        }
-
-        List<UnifiedSearchItemResponse> internalItems = ranked.stream()
-                .map(UnifiedSearchRankingResult::getItem)
-                .filter(item -> item.getSource() == com.ctps.ctps_api.domain.search.dto.SearchItemSource.INTERNAL)
-                .toList();
-        List<UnifiedSearchItemResponse> externalItems = ranked.stream()
-                .map(UnifiedSearchRankingResult::getItem)
-                .filter(item -> item.getSource() == com.ctps.ctps_api.domain.search.dto.SearchItemSource.EXTERNAL)
-                .toList();
-
-        if (internalItems.isEmpty() || externalItems.isEmpty()) {
-            return ranked.stream().map(UnifiedSearchRankingResult::getItem).toList();
-        }
-
-        List<UnifiedSearchItemResponse> merged = new ArrayList<>(ranked.size());
-        int internalIndex = 0;
-        int externalIndex = 0;
-
-        while (internalIndex < internalItems.size() || externalIndex < externalItems.size()) {
-            for (int count = 0; count < 2 && internalIndex < internalItems.size(); count++) {
-                merged.add(internalItems.get(internalIndex++));
-            }
-            if (externalIndex < externalItems.size()) {
-                merged.add(externalItems.get(externalIndex++));
-            }
-            if (internalIndex >= internalItems.size()) {
-                while (externalIndex < externalItems.size()) {
-                    merged.add(externalItems.get(externalIndex++));
-                }
-            }
-            if (externalIndex >= externalItems.size()) {
-                while (internalIndex < internalItems.size()) {
-                    merged.add(internalItems.get(internalIndex++));
-                }
-            }
-        }
-
-        return merged;
+        Map<SearchRankingType, Long> rankingTypeCounts = pageItems.stream()
+                .map(UnifiedSearchItemResponse::getRankingType)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        type -> type,
+                        java.util.LinkedHashMap::new,
+                        java.util.stream.Collectors.counting()
+                ));
+        return UnifiedSearchDebugResponse.builder()
+                .exactCandidatesCount(candidates.getExactCandidates().size())
+                .partialCandidatesCount(candidates.getPartialCandidates().size())
+                .fallbackCandidatesCount(candidates.getFallbackCandidates().size())
+                .deduplicatedCount(ranked.size())
+                .rankingTypeCounts(rankingTypeCounts)
+                .build();
     }
 }

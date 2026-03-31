@@ -12,6 +12,7 @@ public class ProcessedSearchQuery {
     private String rawKeyword;
     private String normalizedKeyword;
     private List<String> keywordTokens;
+    private List<String> expandedKeywords;
     private List<String> normalizedPlatforms;
     private List<String> normalizedTags;
     private List<Problem.Difficulty> requestedDifficulties;

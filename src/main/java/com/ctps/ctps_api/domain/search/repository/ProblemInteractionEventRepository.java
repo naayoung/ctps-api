@@ -13,4 +13,7 @@ public interface ProblemInteractionEventRepository extends JpaRepository<Problem
             Long userId,
             LocalDateTime createdAt
     );
+
+    @EntityGraph(attributePaths = "tags")
+    List<ProblemInteractionEvent> findAllByUserIdOrderByCreatedAtDesc(Long userId);
 }

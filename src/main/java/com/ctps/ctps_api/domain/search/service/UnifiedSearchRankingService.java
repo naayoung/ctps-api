@@ -3,12 +3,18 @@ package com.ctps.ctps_api.domain.search.service;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.search.ProcessedSearchQuery;
-import com.ctps.ctps_api.domain.search.preprocess.SearchTextNormalizer;
+import com.ctps.ctps_api.domain.search.dto.SearchCandidateOrigin;
 import com.ctps.ctps_api.domain.search.dto.SearchItemSource;
+import com.ctps.ctps_api.domain.search.dto.SearchRankingType;
 import com.ctps.ctps_api.domain.search.dto.UnifiedSearchItemResponse;
+import com.ctps.ctps_api.domain.search.dto.UnifiedSearchScoreBreakdown;
+import com.ctps.ctps_api.domain.search.preprocess.SearchTextNormalizer;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -17,26 +23,61 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class UnifiedSearchRankingService {
 
+    private final SearchResultDeduplicator deduplicator;
+
     public List<UnifiedSearchRankingResult> rank(
-            List<UnifiedSearchItemResponse> items,
+            SearchCandidateCollector.CandidateCollection candidates,
             ProcessedSearchQuery processedQuery,
-            ProblemSearchSortOption sortOption
+            ProblemSearchSortOption sortOption,
+            UserPreferenceProfile preferenceProfile,
+            boolean includeScoreBreakdown
     ) {
-        return items.stream()
-                .map(item -> score(item, processedQuery))
+        RankingContext rankingContext = RankingContext.from(candidates, processedQuery, preferenceProfile);
+
+        Map<String, UnifiedSearchRankingResult> deduplicated = new LinkedHashMap<>();
+        for (UnifiedSearchItemResponse item : candidates.allCandidates()) {
+            UnifiedSearchRankingResult scored = score(item, rankingContext, includeScoreBreakdown);
+            String key = deduplicator.keyOf(scored.getItem());
+            UnifiedSearchRankingResult existing = deduplicated.get(key);
+            if (existing == null || scored.getTotalScore() > existing.getTotalScore()) {
+                deduplicated.put(key, scored);
+            }
+        }
+
+        return deduplicated.values().stream()
                 .sorted(sortComparator(sortOption))
                 .toList();
     }
 
-    private UnifiedSearchRankingResult score(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        int keywordScore = calculateKeywordScore(item, query);
-        int tagScore = calculateTagScore(item, query);
-        int platformScore = calculatePlatformScore(item, query);
-        int difficultyScore = calculateDifficultyScore(item, query);
+    private UnifiedSearchRankingResult score(
+            UnifiedSearchItemResponse item,
+            RankingContext context,
+            boolean includeScoreBreakdown
+    ) {
+        MatchContext matchContext = classifyMatch(item, context);
+        int baseScore = baseScore(matchContext.rankingType());
+        int tagScore = calculateTagScore(item, context);
+        int typeScore = calculateTypeScore(item, context);
+        int platformScore = calculatePlatformScore(item, context.query(), context.preferenceProfile());
+        int difficultyScore = calculateDifficultyScore(item, context.query(), context.preferenceProfile());
+        int userPreferenceScore = calculateUserPreferenceScore(item, context.preferenceProfile());
+        int freshnessScore = calculateFreshnessScore(item);
+        int penaltyScore = calculatePenaltyScore(item, matchContext, tagScore, userPreferenceScore);
         int internalPriorityScore = item.getSource() == SearchItemSource.INTERNAL ? 3 : 0;
         int bookmarkScore = item.isBookmarked() ? 2 : 0;
         int reviewPriorityScore = item.isNeedsReview() ? 2 : 0;
-        int ruleScore = keywordScore + tagScore + platformScore + difficultyScore + internalPriorityScore + bookmarkScore + reviewPriorityScore;
+        int ruleScore = baseScore
+                + matchContext.matchScore()
+                + tagScore
+                + typeScore
+                + platformScore
+                + difficultyScore
+                + userPreferenceScore
+                + freshnessScore
+                + internalPriorityScore
+                + bookmarkScore
+                + reviewPriorityScore
+                - penaltyScore;
         int normalizedProviderScore = item.getProviderNormalizedScore() == null
                 ? 0
                 : (int) Math.round(item.getProviderNormalizedScore() * 4);
@@ -58,6 +99,23 @@ public class UnifiedSearchRankingService {
                         .summary(item.getSummary())
                         .description(item.getDescription())
                         .externalUrl(item.getExternalUrl())
+                        .rankingType(matchContext.rankingType())
+                        .matchedKeyword(matchContext.matchedKeyword())
+                        .matchedTags(matchContext.matchedTags())
+                        .scoreBreakdown(includeScoreBreakdown
+                                ? UnifiedSearchScoreBreakdown.builder()
+                                .baseScore(baseScore)
+                                .matchScore(matchContext.matchScore())
+                                .tagScore(tagScore)
+                                .typeScore(typeScore)
+                                .difficultyScore(difficultyScore)
+                                .platformScore(platformScore)
+                                .userPreferenceScore(userPreferenceScore)
+                                .freshnessScore(freshnessScore)
+                                .penaltyScore(penaltyScore)
+                                .finalScore(totalScore)
+                                .build()
+                                : null)
                         .result(item.getResult())
                         .needsReview(item.isNeedsReview())
                         .bookmarked(item.isBookmarked())
@@ -94,62 +152,180 @@ public class UnifiedSearchRankingService {
         };
     }
 
-    private int calculateKeywordScore(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        if (!StringUtils.hasText(query.getNormalizedKeyword())) {
-            return 0;
+    private MatchContext classifyMatch(UnifiedSearchItemResponse item, RankingContext context) {
+        ProcessedSearchQuery query = context.query();
+        String normalizedKeyword = query.getNormalizedKeyword();
+        String normalizedTitle = normalize(item.getTitle());
+        String normalizedSummary = normalize(item.getSummary());
+        String normalizedDescription = normalize(item.getDescription());
+        List<String> normalizedTags = normalizedTags(item);
+        SearchCandidateOrigin origin = item.getCandidateOrigin();
+
+        if (origin != SearchCandidateOrigin.FALLBACK_BY_TAG
+                && origin != SearchCandidateOrigin.FALLBACK_BY_USER_PREFERENCE
+                && StringUtils.hasText(normalizedKeyword)) {
+            if (normalizedTitle.equals(normalizedKeyword)) {
+                return new MatchContext(SearchRankingType.EXACT, query.getRawKeyword(), matchedTags(normalizedTags, query.getNormalizedTags()), 100);
+            }
+            if (normalizedTitle.contains(normalizedKeyword)) {
+                return new MatchContext(SearchRankingType.EXACT, query.getRawKeyword(), matchedTags(normalizedTags, query.getNormalizedTags()), 90);
+            }
+            if (normalizedSummary.contains(normalizedKeyword)
+                    || normalizedDescription.contains(normalizedKeyword)
+                    || normalizedTags.stream().anyMatch(tag -> tag.contains(normalizedKeyword))) {
+                return new MatchContext(SearchRankingType.EXACT, query.getRawKeyword(), matchedTags(normalizedTags, query.getNormalizedTags()), 75);
+            }
         }
 
-        String title = normalize(item.getTitle());
-        if (title.contains(query.getNormalizedKeyword())) {
-            return 10;
+        for (String expandedKeyword : query.getExpandedKeywords()) {
+            if (!StringUtils.hasText(expandedKeyword) || expandedKeyword.length() < 2) {
+                continue;
+            }
+            if (normalizedTitle.contains(expandedKeyword)) {
+                return new MatchContext(SearchRankingType.PARTIAL, expandedKeyword, matchedTags(normalizedTags, List.of(expandedKeyword)), 55);
+            }
+            if (normalizedTags.stream().anyMatch(tag -> tag.contains(expandedKeyword))
+                    || normalizedSummary.contains(expandedKeyword)
+                    || normalizedDescription.contains(expandedKeyword)) {
+                return new MatchContext(SearchRankingType.PARTIAL, expandedKeyword, matchedTags(normalizedTags, List.of(expandedKeyword)), 35);
+            }
         }
 
-        boolean tokenMatch = query.getKeywordTokens().stream().anyMatch(title::contains);
-        if (tokenMatch) {
-            return 6;
+        if (origin == SearchCandidateOrigin.FALLBACK_BY_TAG) {
+            return new MatchContext(
+                    SearchRankingType.RECOMMENDED_BY_TAG,
+                    null,
+                    matchedTags(normalizedTags, context.relatedTags()),
+                    20
+            );
         }
 
-        if (containsKeywordInTags(item, query)) {
-            return 4;
+        int relatedTagScore = overlapCount(normalizedTags, contextTags(query.getNormalizedTags()));
+        if (relatedTagScore > 0) {
+            return new MatchContext(SearchRankingType.RECOMMENDED_BY_TAG, null, matchedTags(normalizedTags, query.getNormalizedTags()), 0);
         }
 
-        String description = normalize(item.getSummary()) + " " + normalize(item.getDescription());
-        return query.getKeywordTokens().stream().anyMatch(description::contains) ? 3 : 0;
+        return new MatchContext(SearchRankingType.RECOMMENDED_BY_USER_PREFERENCE, null, List.of(), 0);
     }
 
-    private int calculateTagScore(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        if (query.getNormalizedTags().isEmpty() || item.getTags() == null) {
+    private int calculateTagScore(UnifiedSearchItemResponse item, RankingContext context) {
+        List<String> normalizedTags = normalizedTags(item);
+        if (normalizedTags.isEmpty()) {
             return 0;
         }
-        long matched = query.getNormalizedTags().stream()
-                .filter(tag -> item.getTags().stream().map(this::normalize).anyMatch(candidate -> candidate.contains(tag)))
-                .count();
-        if (matched >= 2) return 5;
-        if (matched == 1) return 3;
+
+        int exactQueryMatches = overlapCount(normalizedTags, context.query().getNormalizedTags());
+        int relatedMatches = overlapCount(normalizedTags, context.relatedTags());
+        if (exactQueryMatches > 0) {
+            return 20;
+        }
+        if (relatedMatches > 0) {
+            return 10;
+        }
         return 0;
     }
 
-    private int calculatePlatformScore(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        if (query.getNormalizedPlatforms().isEmpty()) {
+    private int calculateTypeScore(UnifiedSearchItemResponse item, RankingContext context) {
+        List<String> normalizedTags = normalizedTags(item);
+        if (normalizedTags.isEmpty()) {
             return 0;
         }
-        String normalizedPlatform = normalize(item.getPlatform());
-        return query.getNormalizedPlatforms().stream().anyMatch(normalizedPlatform::equals) ? 2 : 0;
+        return overlapCount(normalizedTags, context.relatedTypes()) > 0 ? 15 : 0;
     }
 
-    private int calculateDifficultyScore(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        if (item.getDifficulty() == null || query.getRequestedDifficulties().isEmpty()) {
+    private int calculatePlatformScore(
+            UnifiedSearchItemResponse item,
+            ProcessedSearchQuery query,
+            UserPreferenceProfile preferenceProfile
+    ) {
+        String normalizedPlatform = normalize(item.getPlatform());
+        if (query.getNormalizedPlatforms().stream().anyMatch(normalizedPlatform::equals)) {
+            return 5;
+        }
+        return preferenceProfile.getPlatformScores().getOrDefault(normalizedPlatform, 0.0) >= 0.6 ? 5 : 0;
+    }
+
+    private int calculateDifficultyScore(
+            UnifiedSearchItemResponse item,
+            ProcessedSearchQuery query,
+            UserPreferenceProfile preferenceProfile
+    ) {
+        if (item.getDifficulty() == null) {
             return 0;
         }
-        return query.getRequestedDifficulties().stream()
+        int queryScore = query.getRequestedDifficulties().stream()
                 .mapToInt(requested -> {
                     int distance = Math.abs(difficultyRank(requested) - difficultyRank(item.getDifficulty()));
-                    if (distance == 0) return 3;
-                    if (distance == 1) return 1;
+                    if (distance == 0) return 8;
+                    if (distance == 1) return 4;
                     return 0;
                 })
                 .max()
                 .orElse(0);
+        int preferenceScore = (int) Math.round(preferenceProfile.getDifficultyScores()
+                .getOrDefault(item.getDifficulty().name().toLowerCase(java.util.Locale.ROOT), 0.0) * 8);
+        return Math.max(queryScore, preferenceScore);
+    }
+
+    private int calculateUserPreferenceScore(UnifiedSearchItemResponse item, UserPreferenceProfile preferenceProfile) {
+        List<String> normalizedTags = normalizedTags(item);
+        double recentTagWeight = normalizedTags.stream()
+                .mapToDouble(tag -> preferenceProfile.getRecentTagScores().getOrDefault(tag, 0.0))
+                .max()
+                .orElse(0.0);
+        double recentTypeWeight = normalizedTags.stream()
+                .mapToDouble(tag -> preferenceProfile.getRecentTypeScores().getOrDefault(tag, 0.0))
+                .max()
+                .orElse(0.0);
+        double lifetimeWeight = normalizedTags.stream()
+                .mapToDouble(tag -> preferenceProfile.getLifetimeTagScores().getOrDefault(tag, 0.0))
+                .max()
+                .orElse(0.0);
+        double difficultyWeight = item.getDifficulty() == null
+                ? 0.0
+                : preferenceProfile.getDifficultyScores()
+                .getOrDefault(item.getDifficulty().name().toLowerCase(java.util.Locale.ROOT), 0.0);
+        double platformWeight = preferenceProfile.getPlatformScores().getOrDefault(normalize(item.getPlatform()), 0.0);
+
+        int tagScore = (int) Math.round(recentTagWeight * 15);
+        int typeScore = (int) Math.round(recentTypeWeight * 12);
+        int difficultyScore = (int) Math.round(difficultyWeight * 8);
+        int platformScore = (int) Math.round(platformWeight * 5);
+        int lifetimeScore = (int) Math.round(lifetimeWeight * 4);
+        return tagScore + typeScore + difficultyScore + platformScore + lifetimeScore;
+    }
+
+    private int calculateFreshnessScore(UnifiedSearchItemResponse item) {
+        if (item.getCreatedAt() == null) {
+            return 0;
+        }
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        if (item.getCreatedAt().isAfter(thirtyDaysAgo)) {
+            return 5;
+        }
+        if (item.getCreatedAt().isAfter(LocalDateTime.now().minusDays(90))) {
+            return 3;
+        }
+        return 0;
+    }
+
+    private int calculatePenaltyScore(
+            UnifiedSearchItemResponse item,
+            MatchContext matchContext,
+            int tagScore,
+            int userPreferenceScore
+    ) {
+        int penalty = 0;
+        if (matchContext.rankingType() == SearchRankingType.RECOMMENDED_BY_USER_PREFERENCE && tagScore == 0) {
+            penalty += 20;
+        }
+        if (item.isSolved() && matchContext.rankingType() != SearchRankingType.EXACT) {
+            penalty += 5;
+        }
+        if (userPreferenceScore == 0 && matchContext.rankingType() == SearchRankingType.RECOMMENDED_BY_USER_PREFERENCE) {
+            penalty += 10;
+        }
+        return penalty;
     }
 
     private int difficultyRank(Problem.Difficulty difficulty) {
@@ -175,25 +351,82 @@ public class UnifiedSearchRankingService {
         return SearchTextNormalizer.normalize(value);
     }
 
-    private boolean containsKeywordInTags(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
-        if (item.getTags() == null || item.getTags().isEmpty()) {
-            return false;
+    private List<String> normalizedTags(UnifiedSearchItemResponse item) {
+        if (item.getTags() == null) {
+            return List.of();
         }
-
-        List<String> normalizedTags = item.getTags().stream()
+        return item.getTags().stream()
                 .map(this::normalize)
                 .filter(StringUtils::hasText)
                 .toList();
+    }
 
-        if (normalizedTags.stream().anyMatch(tag -> tag.contains(query.getNormalizedKeyword()))) {
-            return true;
+    private List<String> matchedTags(List<String> normalizedTags, List<String> candidateTags) {
+        if (normalizedTags.isEmpty() || candidateTags.isEmpty()) {
+            return List.of();
         }
+        return normalizedTags.stream()
+                .filter(tag -> candidateTags.stream().anyMatch(tag::contains))
+                .distinct()
+                .toList();
+    }
 
-        return query.getKeywordTokens().stream()
-                .anyMatch(token -> normalizedTags.stream().anyMatch(tag -> tag.contains(token)));
+    private int overlapCount(List<String> normalizedTags, List<String> targets) {
+        if (normalizedTags.isEmpty() || targets.isEmpty()) {
+            return 0;
+        }
+        return (int) normalizedTags.stream()
+                .filter(tag -> targets.stream().anyMatch(target -> tag.contains(target) || target.contains(tag)))
+                .distinct()
+                .count();
+    }
+
+    private List<String> contextTags(List<String> normalizedTags) {
+        return normalizedTags == null ? List.of() : normalizedTags;
+    }
+
+    private int baseScore(SearchRankingType rankingType) {
+        return switch (rankingType) {
+            case EXACT -> 1000;
+            case PARTIAL -> 700;
+            case RECOMMENDED_BY_TAG -> 400;
+            case RECOMMENDED_BY_USER_PREFERENCE -> 350;
+        };
     }
 
     private String safeLower(String value) {
         return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private record MatchContext(
+            SearchRankingType rankingType,
+            String matchedKeyword,
+            List<String> matchedTags,
+            int matchScore
+    ) {
+    }
+
+    private record RankingContext(
+            ProcessedSearchQuery query,
+            UserPreferenceProfile preferenceProfile,
+            List<String> relatedTags,
+            List<String> relatedTypes
+    ) {
+        private static RankingContext from(
+                SearchCandidateCollector.CandidateCollection candidates,
+                ProcessedSearchQuery query,
+                UserPreferenceProfile preferenceProfile
+        ) {
+            List<String> relatedSignals = java.util.stream.Stream.concat(
+                            candidates.getExactCandidates().stream(),
+                            candidates.getPartialCandidates().stream())
+                    .flatMap(item -> item.getTags() == null ? java.util.stream.Stream.empty() : item.getTags().stream())
+                    .map(SearchTextNormalizer::normalize)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .limit(6)
+                    .toList();
+            return new RankingContext(query, preferenceProfile, relatedSignals, relatedSignals);
+        }
     }
 }

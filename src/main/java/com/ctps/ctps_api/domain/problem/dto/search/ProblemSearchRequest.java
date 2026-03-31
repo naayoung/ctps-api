@@ -35,6 +35,8 @@ public class ProblemSearchRequest {
     @Max(100)
     private Integer size = 15;
 
+    private Boolean debug;
+
     public ProblemSearchRequest copyWithPageAndSize(int nextPage, int nextSize) {
         ProblemSearchRequest copied = new ProblemSearchRequest();
         copied.keyword = this.keyword;
@@ -47,6 +49,7 @@ public class ProblemSearchRequest {
         copied.sort = this.sort;
         copied.page = nextPage;
         copied.size = nextSize;
+        copied.debug = this.debug;
         return copied;
     }
 
@@ -93,5 +96,9 @@ public class ProblemSearchRequest {
 
     public Boolean getBookmarked() {
         return bookmarked;
+    }
+
+    public boolean isDebugEnabled() {
+        return Boolean.TRUE.equals(debug);
     }
 }

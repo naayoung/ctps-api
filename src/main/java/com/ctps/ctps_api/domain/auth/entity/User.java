@@ -52,6 +52,7 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    // Legacy field kept for schema compatibility. Local signup/login no longer requires email verification.
     private LocalDateTime emailVerifiedAt;
 
     private LocalDateTime deletedAt;

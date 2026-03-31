@@ -20,4 +20,5 @@ public class UnifiedSearchResponse {
     private List<String> failedExternalProviders;
     private String externalWarning;
     private List<UnifiedSearchItemResponse> items;
+    private UnifiedSearchDebugResponse debug;
 }
