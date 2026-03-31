@@ -10,8 +10,10 @@ import com.ctps.ctps_api.domain.auth.repository.UserRepository;
 import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
+import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
+import com.ctps.ctps_api.domain.review.entity.Review;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.domain.search.service.SearchActivityService;
 import com.ctps.ctps_api.global.security.AuthenticatedUser;
@@ -26,6 +28,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -155,5 +160,53 @@ class ProblemServiceTest {
         org.mockito.Mockito.verify(problemMetadataService, org.mockito.Mockito.never()).resolve(any());
         assertThat(response.getTitle()).isEqualTo("직접 입력한 제목");
         assertThat(response.getTags()).containsExactly("직접태그");
+    }
+
+    @Test
+    @DisplayName("찜 전용 문제를 찜 해제해도 풀이 이력이 없으면 복습 필요로 돌아가지 않는다")
+    void updateProblem_unbookmarkBookmarkOnlyProblem_keepsReviewDisabled() {
+        CurrentUserContext.set(AuthenticatedUser.builder()
+                .id(1L)
+                .username("tester")
+                .displayName("테스터")
+                .build());
+
+        Problem problem = Problem.builder()
+                .platform("백준")
+                .title("미로 탐색")
+                .number("2178")
+                .link("https://www.acmicpc.net/problem/2178")
+                .tags(List.of("그래프"))
+                .difficulty(Problem.Difficulty.medium)
+                .memo("")
+                .result(null)
+                .needsReview(true)
+                .reviewHistory(List.of())
+                .createdAt(LocalDateTime.now())
+                .solvedDates(List.of())
+                .lastSolvedAt(null)
+                .bookmarked(true)
+                .build();
+        ReflectionTestUtils.setField(problem, "id", 10L);
+
+        Review review = Review.builder()
+                .problem(problem)
+                .reviewCount(0)
+                .lastReviewedDate(java.time.LocalDate.now())
+                .nextReviewDate(java.time.LocalDate.now())
+                .build();
+
+        ProblemUpdateRequest request = new ProblemUpdateRequest();
+        ReflectionTestUtils.setField(request, "bookmarked", false);
+
+        given(problemRepository.findByIdAndUserId(10L, 1L)).willReturn(java.util.Optional.of(problem));
+        given(reviewRepository.findByProblemIdAndProblemUserId(10L, 1L)).willReturn(java.util.Optional.of(review));
+
+        ProblemResponse response = problemService.updateProblem(10L, request);
+
+        assertThat(response.isBookmarked()).isFalse();
+        assertThat(response.isNeedsReview()).isFalse();
+        verify(reviewRepository).delete(review);
+        verify(searchActivityService, never()).recordMarkReviewEvent(any());
     }
 }

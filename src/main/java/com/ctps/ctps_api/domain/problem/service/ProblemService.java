@@ -67,9 +67,7 @@ public class ProblemService {
                 .lastSolvedAt(request.getLastSolvedAt())
                 .bookmarked(request.isBookmarked())
                 .build();
-        if (problem.isBookmarked()) {
-            problem.removeFromReviewQueue();
-        }
+        normalizeReviewEligibility(problem);
 
         Problem saved = problemRepository.save(problem);
         syncReviewState(saved);
@@ -115,9 +113,7 @@ public class ProblemService {
         if (Boolean.TRUE.equals(request.getNeedsReview())) {
             problem.markReviewRequired();
         }
-        if (problem.isBookmarked()) {
-            problem.removeFromReviewQueue();
-        }
+        normalizeReviewEligibility(problem);
         syncReviewState(problem);
         if (!wasBookmarked && problem.isBookmarked()) {
             searchActivityService.recordBookmarkEvent(problem);
@@ -182,12 +178,16 @@ public class ProblemService {
     }
 
     private void syncReviewState(Problem problem) {
-        if (!problem.isNeedsReview() || problem.isBookmarked()) {
+        Long userId = CurrentUserContext.getRequired().getId();
+
+        if (!problem.isNeedsReview() || problem.isBookmarked() || !canEnterReviewQueue(problem)) {
+            reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), userId)
+                    .ifPresent(reviewRepository::delete);
             return;
         }
 
         LocalDate today = LocalDate.now();
-        Review review = reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), CurrentUserContext.getRequired().getId())
+        Review review = reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), userId)
                 .orElseGet(() -> reviewRepository.save(Review.builder()
                         .problem(problem)
                         .reviewCount(problem.getReviewHistory().size())
@@ -195,5 +195,17 @@ public class ProblemService {
                         .nextReviewDate(today)
                         .build()));
         review.markPending(today);
+    }
+
+    private void normalizeReviewEligibility(Problem problem) {
+        if (problem.isBookmarked() || !canEnterReviewQueue(problem)) {
+            problem.removeFromReviewQueue();
+        }
+    }
+
+    private boolean canEnterReviewQueue(Problem problem) {
+        return problem.getResult() != null
+                || (problem.getSolvedDates() != null && !problem.getSolvedDates().isEmpty())
+                || problem.getLastSolvedAt() != null;
     }
 }
