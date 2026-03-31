@@ -305,7 +305,7 @@ public class ProblemService {
             Problem.Result result,
             String memo
     ) {
-        if (result != Problem.Result.success || currentSolveHistory == null || currentSolveHistory.isEmpty()) {
+        if (result == null || currentSolveHistory == null || currentSolveHistory.isEmpty()) {
             return;
         }
 
