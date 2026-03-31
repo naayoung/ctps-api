@@ -27,7 +27,7 @@ public class ReviewController {
     @PostMapping("/{problemId}/check")
     public ResponseEntity<ApiResponse<ReviewCheckResponse>> checkReview(@PathVariable Long problemId) {
         ReviewCheckResponse response = reviewService.checkReview(problemId);
-        return ResponseEntity.ok(ApiResponse.success("복습 체크 성공", response));
+        return ResponseEntity.ok(ApiResponse.success("복습 등록 성공", response));
     }
 
     @GetMapping("/{problemId}/history")

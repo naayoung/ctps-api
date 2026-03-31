@@ -56,4 +56,10 @@ public class Review {
     public void markPending(LocalDate nextReviewDate) {
         this.nextReviewDate = nextReviewDate;
     }
+
+    public void resetCycle(LocalDate solvedDate) {
+        this.reviewCount = 0;
+        this.lastReviewedDate = solvedDate;
+        this.nextReviewDate = solvedDate;
+    }
 }

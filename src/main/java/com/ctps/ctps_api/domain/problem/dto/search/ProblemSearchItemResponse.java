@@ -33,7 +33,7 @@ public class ProblemSearchItemResponse {
                 .difficulty(problem.getDifficulty())
                 .tags(problem.getTags())
                 .result(problem.getResult())
-                .needsReview(problem.isNeedsReview() && !problem.isBookmarked())
+                .needsReview(problem.isNeedsReview())
                 .bookmarked(problem.isBookmarked())
                 .memoSummary(summarizeMemo(problem.getMemo()))
                 .lastSolvedAt(problem.getLastSolvedAt())

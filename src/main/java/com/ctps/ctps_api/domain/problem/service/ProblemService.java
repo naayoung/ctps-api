@@ -6,17 +6,26 @@ import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResolveRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
+import com.ctps.ctps_api.domain.problem.dto.ProblemSolveHistoryItemResponse;
+import com.ctps.ctps_api.domain.problem.dto.ProblemSolveHistoryResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.domain.problem.entity.ProblemSolveHistoryEntry;
 import com.ctps.ctps_api.domain.problem.repository.ProblemRepository;
+import com.ctps.ctps_api.domain.problem.repository.ProblemSolveHistoryRepository;
 import com.ctps.ctps_api.domain.review.entity.Review;
+import com.ctps.ctps_api.domain.review.repository.ReviewHistoryRepository;
 import com.ctps.ctps_api.domain.review.repository.ReviewRepository;
 import com.ctps.ctps_api.domain.search.service.SearchActivityService;
 import com.ctps.ctps_api.global.exception.NotFoundException;
 import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +39,8 @@ public class ProblemService {
     private final ProblemRepository problemRepository;
     private final UserRepository userRepository;
     private final ReviewRepository reviewRepository;
+    private final ReviewHistoryRepository reviewHistoryRepository;
+    private final ProblemSolveHistoryRepository problemSolveHistoryRepository;
     private final SearchActivityService searchActivityService;
     private final ProblemMetadataService problemMetadataService;
 
@@ -56,7 +67,7 @@ public class ProblemService {
                 .number(resolvedNumber)
                 .link(resolvedLink)
                 .tags(resolvedTags)
-                .difficulty(request.getDifficulty())
+                .difficulty(resolveDifficulty(request.getDifficulty(), request.isBookmarked(), request.getResult()))
                 .memo(request.getMemo())
                 .result(request.getResult())
                 .needsReview(request.isNeedsReview())
@@ -64,12 +75,14 @@ public class ProblemService {
                 .reviewHistory(request.getReviewHistory())
                 .createdAt(LocalDateTime.now())
                 .solvedDates(request.getSolvedDates())
+                .solveHistory(resolveSolveHistory(request.getSolveHistory(), request.getSolvedDates()))
                 .lastSolvedAt(request.getLastSolvedAt())
                 .bookmarked(request.isBookmarked())
                 .build();
         normalizeReviewEligibility(problem);
 
         Problem saved = problemRepository.save(problem);
+        recordSolveHistoryEntries(saved, List.of(), saved.getSolveHistory(), request.getResult(), request.getMemo());
         syncReviewState(saved);
         if (saved.isBookmarked()) {
             searchActivityService.recordBookmarkEvent(saved);
@@ -89,11 +102,38 @@ public class ProblemService {
         return ProblemResponse.from(findById(id));
     }
 
+    public ProblemSolveHistoryResponse getSolveHistory(Long id) {
+        Problem problem = findById(id);
+        Long userId = CurrentUserContext.getRequired().getId();
+
+        List<ProblemSolveHistoryItemResponse> entries = new ArrayList<>(
+                problemSolveHistoryRepository.findAllByProblemIdAndUserIdOrderBySolvedAtDesc(problem.getId(), userId)
+                        .stream()
+                        .map(ProblemSolveHistoryItemResponse::from)
+                        .toList()
+        );
+
+        if (entries.isEmpty()) {
+            entries = resolveSolveHistory(problem).stream()
+                    .sorted(Comparator.reverseOrder())
+                    .map(ProblemSolveHistoryItemResponse::fallback)
+                    .toList();
+        }
+
+        return ProblemSolveHistoryResponse.builder()
+                .problemId(problem.getId())
+                .problemTitle(problem.getTitle())
+                .totalSolveCount(entries.size())
+                .entries(entries)
+                .build();
+    }
+
     @Transactional
     public ProblemResponse updateProblem(Long id, ProblemUpdateRequest request) {
         Problem problem = findById(id);
         boolean wasBookmarked = problem.isBookmarked();
         boolean neededReview = problem.isNeedsReview();
+        List<LocalDateTime> previousSolveHistory = resolveSolveHistory(problem);
         problem.patch(
                 request.getPlatform(),
                 request.getTitle(),
@@ -107,13 +147,24 @@ public class ProblemService {
                 request.getReviewedAt(),
                 request.getReviewHistory(),
                 request.getSolvedDates(),
+                request.getSolveHistory(),
                 request.getLastSolvedAt(),
                 request.getBookmarked()
         );
+        if (Boolean.TRUE.equals(request.getBookmarked()) && request.getResult() == null) {
+            problem.clearDifficulty();
+        }
         if (Boolean.TRUE.equals(request.getNeedsReview())) {
             problem.markReviewRequired();
         }
         normalizeReviewEligibility(problem);
+        recordSolveHistoryEntries(
+                problem,
+                previousSolveHistory,
+                resolveSolveHistory(problem),
+                request.getResult(),
+                request.getMemo()
+        );
         syncReviewState(problem);
         if (!wasBookmarked && problem.isBookmarked()) {
             searchActivityService.recordBookmarkEvent(problem);
@@ -127,6 +178,9 @@ public class ProblemService {
     @Transactional
     public void deleteProblem(Long id) {
         Problem problem = findById(id);
+        problemSolveHistoryRepository.deleteAllByProblemId(problem.getId());
+        reviewHistoryRepository.deleteAllByProblemId(problem.getId());
+        reviewRepository.findByProblemId(problem.getId()).ifPresent(reviewRepository::delete);
         problemRepository.delete(problem);
     }
 
@@ -177,28 +231,44 @@ public class ProblemService {
         return StringUtils.hasText(primary) ? primary : fallback;
     }
 
+    private Problem.Difficulty resolveDifficulty(Problem.Difficulty difficulty, boolean bookmarked, Problem.Result result) {
+        if (bookmarked && result == null) {
+            return null;
+        }
+        return difficulty;
+    }
+
     private void syncReviewState(Problem problem) {
         Long userId = CurrentUserContext.getRequired().getId();
 
-        if (!problem.isNeedsReview() || problem.isBookmarked() || !canEnterReviewQueue(problem)) {
+        if (!problem.isNeedsReview() || !canEnterReviewQueue(problem)) {
             reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), userId)
                     .ifPresent(reviewRepository::delete);
             return;
         }
 
         LocalDate today = LocalDate.now();
+        LocalDate latestSolvedDate = problem.getLastSolvedAt();
+        int cycleReviewCount = countReviewsSinceLatestSolve(problem);
+        LocalDate cycleLastReviewedDate = resolveCycleLastReviewedDate(problem, latestSolvedDate, today);
+
         Review review = reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), userId)
                 .orElseGet(() -> reviewRepository.save(Review.builder()
                         .problem(problem)
-                        .reviewCount(problem.getReviewHistory().size())
-                        .lastReviewedDate(problem.getReviewedAt() != null ? problem.getReviewedAt() : today)
+                        .reviewCount(cycleReviewCount)
+                        .lastReviewedDate(cycleLastReviewedDate)
                         .nextReviewDate(today)
                         .build()));
-        review.markPending(today);
+
+        if (latestSolvedDate != null && review.getLastReviewedDate().isBefore(latestSolvedDate)) {
+            review.resetCycle(latestSolvedDate);
+        } else {
+            review.markPending(today);
+        }
     }
 
     private void normalizeReviewEligibility(Problem problem) {
-        if (problem.isBookmarked() || !canEnterReviewQueue(problem)) {
+        if (!canEnterReviewQueue(problem)) {
             problem.removeFromReviewQueue();
         }
     }
@@ -206,6 +276,107 @@ public class ProblemService {
     private boolean canEnterReviewQueue(Problem problem) {
         return problem.getResult() != null
                 || (problem.getSolvedDates() != null && !problem.getSolvedDates().isEmpty())
+                || (problem.getSolveHistory() != null && !problem.getSolveHistory().isEmpty())
                 || problem.getLastSolvedAt() != null;
+    }
+
+    private List<LocalDateTime> resolveSolveHistory(List<LocalDateTime> solveHistory, List<LocalDate> solvedDates) {
+        if (solveHistory != null && !solveHistory.isEmpty()) {
+            return solveHistory;
+        }
+
+        if (solvedDates == null || solvedDates.isEmpty()) {
+            return List.of();
+        }
+
+        return solvedDates.stream()
+                .map(LocalDate::atStartOfDay)
+                .toList();
+    }
+
+    private List<LocalDateTime> resolveSolveHistory(Problem problem) {
+        return resolveSolveHistory(problem.getSolveHistory(), problem.getSolvedDates());
+    }
+
+    private void recordSolveHistoryEntries(
+            Problem problem,
+            List<LocalDateTime> previousSolveHistory,
+            List<LocalDateTime> currentSolveHistory,
+            Problem.Result result,
+            String memo
+    ) {
+        if (result != Problem.Result.success || currentSolveHistory == null || currentSolveHistory.isEmpty()) {
+            return;
+        }
+
+        Map<LocalDateTime, Integer> previousCounts = toCountMap(previousSolveHistory);
+        List<ProblemSolveHistoryEntry> newEntries = currentSolveHistory.stream()
+                .filter(solvedAt -> {
+                    int remaining = previousCounts.getOrDefault(solvedAt, 0);
+                    if (remaining > 0) {
+                        previousCounts.put(solvedAt, remaining - 1);
+                        return false;
+                    }
+                    return true;
+                })
+                .map(solvedAt -> ProblemSolveHistoryEntry.builder()
+                        .problem(problem)
+                        .user(problem.getUser())
+                        .result(result)
+                        .memo(memo == null ? "" : memo)
+                        .solvedAt(solvedAt)
+                        .createdAt(LocalDateTime.now())
+                        .build())
+                .toList();
+
+        if (!newEntries.isEmpty()) {
+            problemSolveHistoryRepository.saveAll(newEntries);
+        }
+    }
+
+    private Map<LocalDateTime, Integer> toCountMap(List<LocalDateTime> history) {
+        Map<LocalDateTime, Integer> counts = new HashMap<>();
+        if (history == null) {
+            return counts;
+        }
+
+        for (LocalDateTime solvedAt : history) {
+            counts.merge(solvedAt, 1, Integer::sum);
+        }
+        return counts;
+    }
+
+    private int countReviewsSinceLatestSolve(Problem problem) {
+        if (problem.getReviewHistory() == null || problem.getReviewHistory().isEmpty()) {
+            return 0;
+        }
+
+        LocalDate latestSolvedDate = problem.getLastSolvedAt();
+        if (latestSolvedDate == null) {
+            return problem.getReviewHistory().size();
+        }
+
+        return (int) problem.getReviewHistory().stream()
+                .filter(reviewedDate -> !reviewedDate.isBefore(latestSolvedDate))
+                .count();
+    }
+
+    private LocalDate resolveCycleLastReviewedDate(Problem problem, LocalDate latestSolvedDate, LocalDate fallbackDate) {
+        if (problem.getReviewHistory() != null && !problem.getReviewHistory().isEmpty()) {
+            return problem.getReviewHistory().stream()
+                    .filter(reviewedDate -> latestSolvedDate == null || !reviewedDate.isBefore(latestSolvedDate))
+                    .max(Comparator.naturalOrder())
+                    .orElse(latestSolvedDate != null ? latestSolvedDate : fallbackDate);
+        }
+
+        if (latestSolvedDate != null) {
+            return latestSolvedDate;
+        }
+
+        if (problem.getReviewedAt() != null) {
+            return problem.getReviewedAt();
+        }
+
+        return fallbackDate;
     }
 }

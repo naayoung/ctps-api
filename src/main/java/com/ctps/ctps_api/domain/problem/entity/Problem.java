@@ -67,7 +67,7 @@ public class Problem {
     private List<String> tags = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Difficulty difficulty;
 
     @Column(nullable = false, length = 2000)
@@ -95,6 +95,11 @@ public class Problem {
     @Column(name = "solved_date", nullable = false)
     private List<LocalDate> solvedDates = new ArrayList<>();
 
+    @ElementCollection(fetch = FetchType.LAZY)
+    @CollectionTable(name = "problem_solve_history_entries", joinColumns = @JoinColumn(name = "problem_id"))
+    @Column(name = "solved_at", nullable = false)
+    private List<LocalDateTime> solveHistory = new ArrayList<>();
+
     private LocalDate lastSolvedAt;
 
     @Column(nullable = false)
@@ -116,6 +121,7 @@ public class Problem {
             List<LocalDate> reviewHistory,
             LocalDateTime createdAt,
             List<LocalDate> solvedDates,
+            List<LocalDateTime> solveHistory,
             LocalDate lastSolvedAt,
             boolean bookmarked
     ) {
@@ -133,6 +139,7 @@ public class Problem {
         this.reviewHistory = reviewHistory == null ? new ArrayList<>() : new ArrayList<>(reviewHistory);
         this.createdAt = createdAt;
         this.solvedDates = solvedDates == null ? new ArrayList<>() : new ArrayList<>(solvedDates);
+        this.solveHistory = solveHistory == null ? new ArrayList<>() : new ArrayList<>(solveHistory);
         if (lastSolvedAt != null) this.lastSolvedAt = lastSolvedAt;
         this.bookmarked = bookmarked;
     }
@@ -150,6 +157,7 @@ public class Problem {
             LocalDate reviewedAt,
             List<LocalDate> reviewHistory,
             List<LocalDate> solvedDates,
+            List<LocalDateTime> solveHistory,
             LocalDate lastSolvedAt,
             Boolean bookmarked
     ) {
@@ -165,8 +173,13 @@ public class Problem {
         this.reviewedAt = reviewedAt;
         if (reviewHistory != null) this.reviewHistory = new ArrayList<>(reviewHistory);
         if (solvedDates != null) this.solvedDates = new ArrayList<>(solvedDates);
+        if (solveHistory != null) this.solveHistory = new ArrayList<>(solveHistory);
         this.lastSolvedAt = lastSolvedAt;
         if (bookmarked != null) this.bookmarked = bookmarked;
+    }
+
+    public void clearDifficulty() {
+        this.difficulty = null;
     }
 
     public void markReviewRequired() {

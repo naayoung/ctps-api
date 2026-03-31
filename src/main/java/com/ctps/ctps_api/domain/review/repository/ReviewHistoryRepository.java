@@ -12,4 +12,6 @@ public interface ReviewHistoryRepository extends JpaRepository<ReviewHistoryEntr
     List<ReviewHistoryEntry> findAllByUserIdAndReviewedAtBetween(Long userId, LocalDate startDate, LocalDate endDate);
 
     long countByUserIdAndReviewedAtBetween(Long userId, LocalDate startDate, LocalDate endDate);
+
+    void deleteAllByProblemId(Long problemId);
 }

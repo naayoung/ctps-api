@@ -16,6 +16,7 @@ import com.ctps.ctps_api.global.security.CurrentUserContext;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,8 +42,8 @@ public class ReviewService {
         Review review = reviewRepository.findByProblemIdAndProblemUserId(problemId, userId)
                 .orElseGet(() -> reviewRepository.save(Review.builder()
                         .problem(problem)
-                        .reviewCount(problem.getReviewHistory().size())
-                        .lastReviewedDate(problem.getReviewedAt() != null ? problem.getReviewedAt() : today)
+                        .reviewCount(countReviewsSinceLatestSolve(problem))
+                        .lastReviewedDate(resolveCycleLastReviewedDate(problem, today))
                         .nextReviewDate(today)
                         .build()));
 
@@ -77,7 +78,7 @@ public class ReviewService {
         Long userId = CurrentUserContext.getRequired().getId();
 
         return reviewRepository.findAllByProblemUserIdAndNextReviewDateLessThanEqual(userId, targetDate).stream()
-                .filter(review -> review.getProblem().isNeedsReview() && !review.getProblem().isBookmarked())
+                .filter(review -> review.getProblem().isNeedsReview())
                 .map(review -> TodayReviewResponse.builder()
                         .reviewId(review.getId())
                         .problemId(review.getProblem().getId())
@@ -110,5 +111,41 @@ public class ReviewService {
                 .totalReviewCount(entries.size())
                 .entries(entries)
                 .build();
+    }
+
+    private int countReviewsSinceLatestSolve(Problem problem) {
+        if (problem.getReviewHistory() == null || problem.getReviewHistory().isEmpty()) {
+            return 0;
+        }
+
+        LocalDate latestSolvedDate = problem.getLastSolvedAt();
+        if (latestSolvedDate == null) {
+            return problem.getReviewHistory().size();
+        }
+
+        return (int) problem.getReviewHistory().stream()
+                .filter(reviewedDate -> !reviewedDate.isBefore(latestSolvedDate))
+                .count();
+    }
+
+    private LocalDate resolveCycleLastReviewedDate(Problem problem, LocalDate fallbackDate) {
+        LocalDate latestSolvedDate = problem.getLastSolvedAt();
+
+        if (problem.getReviewHistory() != null && !problem.getReviewHistory().isEmpty()) {
+            return problem.getReviewHistory().stream()
+                    .filter(reviewedDate -> latestSolvedDate == null || !reviewedDate.isBefore(latestSolvedDate))
+                    .max(Comparator.naturalOrder())
+                    .orElse(latestSolvedDate != null ? latestSolvedDate : fallbackDate);
+        }
+
+        if (latestSolvedDate != null) {
+            return latestSolvedDate;
+        }
+
+        if (problem.getReviewedAt() != null) {
+            return problem.getReviewedAt();
+        }
+
+        return fallbackDate;
     }
 }

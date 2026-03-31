@@ -59,7 +59,7 @@ public class ProblemInteractionEvent {
     private String problemNumber;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(length = 20)
     private Problem.Difficulty difficulty;
 
     @ElementCollection(fetch = FetchType.LAZY)

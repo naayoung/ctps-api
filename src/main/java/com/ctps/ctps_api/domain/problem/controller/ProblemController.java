@@ -4,6 +4,7 @@ import com.ctps.ctps_api.domain.problem.dto.ProblemCreateRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResolveRequest;
 import com.ctps.ctps_api.domain.problem.dto.ProblemMetadataResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemResponse;
+import com.ctps.ctps_api.domain.problem.dto.ProblemSolveHistoryResponse;
 import com.ctps.ctps_api.domain.problem.dto.ProblemUpdateRequest;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchRequest;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchResponse;
@@ -42,6 +43,11 @@ public class ProblemController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<ProblemResponse>> getProblem(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success("문제 조회 성공", problemService.getProblem(id)));
+    }
+
+    @GetMapping("/{id}/solve-history")
+    public ResponseEntity<ApiResponse<ProblemSolveHistoryResponse>> getSolveHistory(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("문제 풀이 이력 조회 성공", problemService.getSolveHistory(id)));
     }
 
     @GetMapping("/search")

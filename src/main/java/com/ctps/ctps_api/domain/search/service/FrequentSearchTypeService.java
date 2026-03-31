@@ -102,16 +102,18 @@ public class FrequentSearchTypeService {
                 addScore(buckets, key(FrequentSearchTypeItemResponse.Type.TAG, tag), FrequentSearchTypeItemResponse.Type.TAG, tag, tag, weight, event.getCreatedAt());
             }
 
-            String difficultyKey = event.getDifficulty().name();
-            addScore(
-                    buckets,
-                    key(FrequentSearchTypeItemResponse.Type.DIFFICULTY, difficultyKey),
-                    FrequentSearchTypeItemResponse.Type.DIFFICULTY,
-                    difficultyKey,
-                    searchTypeCanonicalizer.toDifficultyLabel(event.getDifficulty()),
-                    weight,
-                    event.getCreatedAt()
-            );
+            if (event.getDifficulty() != null) {
+                String difficultyKey = event.getDifficulty().name();
+                addScore(
+                        buckets,
+                        key(FrequentSearchTypeItemResponse.Type.DIFFICULTY, difficultyKey),
+                        FrequentSearchTypeItemResponse.Type.DIFFICULTY,
+                        difficultyKey,
+                        searchTypeCanonicalizer.toDifficultyLabel(event.getDifficulty()),
+                        weight,
+                        event.getCreatedAt()
+                );
+            }
         }
 
         for (SearchEvent searchEvent : searchEvents) {

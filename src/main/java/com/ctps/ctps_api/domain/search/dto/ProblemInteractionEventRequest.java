@@ -22,7 +22,6 @@ public class ProblemInteractionEventRequest {
     @NotBlank
     private String problemNumber;
 
-    @NotNull
     private Problem.Difficulty difficulty;
 
     @NotNull

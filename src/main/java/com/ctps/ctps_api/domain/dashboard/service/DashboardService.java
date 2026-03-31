@@ -55,7 +55,7 @@ public class DashboardService {
                 .totalProblems(problems.size())
                 .solvedProblems((int) problems.stream().filter(problem -> problem.getResult() == Problem.Result.success).count())
                 .reviewNeededProblems((int) problems.stream()
-                        .filter(problem -> problem.isNeedsReview() && !problem.isBookmarked())
+                        .filter(Problem::isNeedsReview)
                         .count())
                 .bookmarkedProblems((int) problems.stream().filter(Problem::isBookmarked).count())
                 .todaySolvedProblems((int) problems.stream()

@@ -4,6 +4,7 @@ import com.ctps.ctps_api.domain.problem.entity.Problem;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import lombok.Getter;
 
@@ -30,6 +31,8 @@ public class ProblemUpdateRequest {
     private List<LocalDate> reviewHistory;
     @Size(max = 365, message = "풀이 이력은 최대 365개까지 저장할 수 있습니다.")
     private List<LocalDate> solvedDates;
+    @Size(max = 2000, message = "풀이 기록은 최대 2000개까지 저장할 수 있습니다.")
+    private List<LocalDateTime> solveHistory;
     private LocalDate lastSolvedAt;
     private Boolean bookmarked;
 }
