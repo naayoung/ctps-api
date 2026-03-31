@@ -33,6 +33,10 @@ APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 - 관리자 적재 API: `/api/admin/external-search/programmers/ingest`
 - 메트릭 API: `/api/admin/external-search/metrics`
 
+검색 랭킹과 provider score 운영 기준은 루트 문서의 개발 구조 문서를 확인합니다.
+
+- [개발 구조 문서](/Users/nayoung/workspace/side-project/ctps/docs/development-structure.md)
+
 상세 문서는 루트 문서를 확인합니다.
 
 - [프로젝트 개요](/Users/nayoung/workspace/side-project/ctps/docs/project-overview.md)
