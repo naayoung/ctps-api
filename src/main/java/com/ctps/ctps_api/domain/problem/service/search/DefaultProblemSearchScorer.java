@@ -2,6 +2,7 @@ package com.ctps.ctps_api.domain.problem.service.search;
 
 import com.ctps.ctps_api.domain.problem.dto.external.ExternalProblemSearchItemResponse;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
+import com.ctps.ctps_api.domain.search.preprocess.SearchTextNormalizer;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -144,14 +145,7 @@ public class DefaultProblemSearchScorer implements ProblemSearchScorer {
     }
 
     private String normalizeText(String text) {
-        if (!StringUtils.hasText(text)) {
-            return "";
-        }
-
-        return text.toLowerCase(java.util.Locale.ROOT)
-                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}\\s]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+        return SearchTextNormalizer.normalize(text);
     }
 
     private List<String> safeTags(List<String> tags) {

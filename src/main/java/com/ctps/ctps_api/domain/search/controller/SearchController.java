@@ -49,7 +49,7 @@ public class SearchController {
             @Valid ProblemSearchRequest request,
             HttpServletRequest httpServletRequest
     ) {
-        log.info(
+        log.debug(
                 "search request keywordLength={} platformCount={} difficultyCount={} tagCount={} sort={} page={} size={}",
                 request.getKeyword() == null ? 0 : request.getKeyword().length(),
                 request.getPlatform().size(),

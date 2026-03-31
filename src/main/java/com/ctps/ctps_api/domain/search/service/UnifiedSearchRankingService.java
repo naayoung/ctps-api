@@ -3,12 +3,12 @@ package com.ctps.ctps_api.domain.search.service;
 import com.ctps.ctps_api.domain.problem.dto.search.ProblemSearchSortOption;
 import com.ctps.ctps_api.domain.problem.entity.Problem;
 import com.ctps.ctps_api.domain.problem.service.search.ProcessedSearchQuery;
+import com.ctps.ctps_api.domain.search.preprocess.SearchTextNormalizer;
 import com.ctps.ctps_api.domain.search.dto.SearchItemSource;
 import com.ctps.ctps_api.domain.search.dto.UnifiedSearchItemResponse;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -172,13 +172,7 @@ public class UnifiedSearchRankingService {
     }
 
     private String normalize(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.toLowerCase(Locale.ROOT)
-                .replaceAll("[^\\p{IsAlphabetic}\\p{IsDigit}\\s]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
+        return SearchTextNormalizer.normalize(value);
     }
 
     private boolean containsKeywordInTags(UnifiedSearchItemResponse item, ProcessedSearchQuery query) {
@@ -200,6 +194,6 @@ public class UnifiedSearchRankingService {
     }
 
     private String safeLower(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT);
+        return value == null ? "" : value.toLowerCase(java.util.Locale.ROOT);
     }
 }

@@ -105,7 +105,7 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                                     .toList())
                             .externalUrl("https://www.acmicpc.net/problem/" + item.getProblemId())
                             .summary(null)
-                            .recommendationReason("solved.ac 기반으로 찾은 백준 추천 문제")
+                            .recommendationReason(null)
                             .solved(false)
                             .build())
                     .toList();
