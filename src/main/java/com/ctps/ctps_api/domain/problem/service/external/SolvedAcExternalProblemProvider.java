@@ -104,7 +104,7 @@ public class SolvedAcExternalProblemProvider implements ExternalProblemProvider 
                                     .filter(StringUtils::hasText)
                                     .toList())
                             .externalUrl("https://www.acmicpc.net/problem/" + item.getProblemId())
-                            .summary("solved.ac 검색 결과를 기반으로 매핑한 백준 문제")
+                            .summary(null)
                             .recommendationReason("solved.ac 기반으로 찾은 백준 추천 문제")
                             .solved(false)
                             .build())

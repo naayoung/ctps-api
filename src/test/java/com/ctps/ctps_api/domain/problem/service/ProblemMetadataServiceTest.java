@@ -81,6 +81,61 @@ class ProblemMetadataServiceTest {
         server.verify();
     }
 
+    @Test
+    @DisplayName("프로그래머스 서버 렌더링 페이지에서도 breadcrumb와 data attribute로 제목과 태그를 보강한다")
+    void resolve_enrichesProgrammersMetadataFromServerRenderedLessonPage() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://school.programmers.co.kr");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://school.programmers.co.kr/learn/courses/30/lessons/43162"))
+                .andExpect(header("User-Agent", "ctps-problem-metadata/1.0"))
+                .andRespond(withSuccess("""
+                        <!DOCTYPE html>
+                        <html lang="ko">
+                        <head>
+                          <meta name="twitter:title" property="og:title" content="코딩테스트 연습 - 네트워크">
+                          <title>코딩테스트 연습 - 네트워크 | 프로그래머스 스쿨</title>
+                        </head>
+                        <body>
+                          <ol class="breadcrumb">
+                            <li><a href="/learn/challenges">코딩테스트 연습</a></li>
+                            <li><a href="/learn/courses/30/parts/12421">깊이/너비 우선 탐색(DFS/BFS)</a></li>
+                            <li class="active">네트워크</li>
+                          </ol>
+                          <div class="lesson-content"
+                               data-lesson-id="43162"
+                               data-lesson-title="네트워크"
+                               data-challenge-level="3">
+                            <span class="challenge-title">네트워크</span>
+                          </div>
+                        </body>
+                        </html>
+                        """, MediaType.parseMediaType("text/html;charset=UTF-8")));
+
+        ProgrammersProblemCatalogRepository repository = Mockito.mock(ProgrammersProblemCatalogRepository.class);
+        given(repository.findFirstByProblemNumber("43162")).willReturn(Optional.empty());
+        given(repository.findFirstByExternalUrl("https://school.programmers.co.kr/learn/courses/30/lessons/43162"))
+                .willReturn(Optional.empty());
+
+        ProblemMetadataService service = new ProblemMetadataService(
+                new TestExternalProviderRestClientFactory(builder),
+                repository,
+                new ObjectMapper()
+        );
+
+        ProblemMetadataResolveRequest request = new ProblemMetadataResolveRequest();
+        request.setPlatform("프로그래머스");
+        request.setNumber("43162");
+        request.setLink("https://school.programmers.co.kr/learn/courses/30/lessons/43162");
+
+        ProblemMetadataResponse response = service.resolve(request);
+
+        assertThat(response.isMetadataFound()).isTrue();
+        assertThat(response.getTitle()).isEqualTo("네트워크");
+        assertThat(response.getDifficulty()).isEqualTo(Problem.Difficulty.medium);
+        assertThat(response.getTags()).contains("깊이", "너비 우선 탐색", "DFS", "BFS", "깊이/너비 우선 탐색(DFS/BFS)");
+        server.verify();
+    }
+
     private static final class TestExternalProviderRestClientFactory extends ExternalProviderRestClientFactory {
 
         private final RestClient.Builder builder;
