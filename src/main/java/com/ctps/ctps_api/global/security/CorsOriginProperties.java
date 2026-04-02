@@ -17,7 +17,7 @@ public class CorsOriginProperties {
 
     public CorsOriginProperties(
             @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,https://ctps-web.vercel.app,https://ctps.vercel.app}") String allowedOrigins,
-            @Value("${app.cors.allowed-origin-patterns:https://*.vercel.app,https://*.railway.app}") String allowedOriginPatterns
+            @Value("${app.cors.allowed-origin-patterns:}") String allowedOriginPatterns
     ) {
         this.allowedOrigins = List.of(allowedOrigins.split(",")).stream()
                 .map(this::normalizeConfiguredOrigin)

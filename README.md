@@ -21,6 +21,21 @@ APP_FRONTEND_BASE_URL=http://localhost:5173
 APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
+배포 권장값:
+
+```bash
+APP_FRONTEND_BASE_URL=https://ctps.vercel.app
+APP_BACKEND_BASE_URL=https://ctps.vercel.app
+APP_CORS_ALLOWED_ORIGINS=https://ctps.vercel.app,https://ctps-web.vercel.app
+APP_CORS_ALLOWED_ORIGIN_PATTERNS=
+AUTH_SESSION_SECURE_COOKIE=true
+AUTH_SESSION_SAME_SITE=Lax
+AUTH_SESSION_COOKIE_DOMAIN=
+```
+
+Vercel 이 `/api/*` 를 Railway 로 프록시하는 구조라면 브라우저가 보는 API origin 은 프론트와 동일합니다.
+이 경우 `APP_BACKEND_BASE_URL` 도 브라우저가 실제로 보는 public origin 기준으로 맞춰야 쿠키 정책이 `SameSite=Lax` 로 안정적으로 계산됩니다.
+
 ## 테스트
 
 ```bash
