@@ -194,9 +194,10 @@ public class ProblemService {
     @Transactional
     public void deleteProblem(Long id) {
         Problem problem = findById(id);
+        Long userId = CurrentUserContext.getRequired().getId();
         problemSolveHistoryRepository.deleteAllByProblemId(problem.getId());
         reviewHistoryRepository.deleteAllByProblemId(problem.getId());
-        reviewRepository.findByProblemId(problem.getId()).ifPresent(reviewRepository::delete);
+        reviewRepository.findByProblemIdAndProblemUserId(problem.getId(), userId).ifPresent(reviewRepository::delete);
         problemRepository.delete(problem);
     }
 

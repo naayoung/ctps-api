@@ -524,12 +524,58 @@ class ProblemServiceTest {
         ReflectionTestUtils.setField(problem, "id", 43165L);
 
         given(problemRepository.findByIdAndUserId(43165L, 1L)).willReturn(java.util.Optional.of(problem));
-        given(reviewRepository.findByProblemId(43165L)).willReturn(java.util.Optional.empty());
+        given(reviewRepository.findByProblemIdAndProblemUserId(43165L, 1L)).willReturn(java.util.Optional.empty());
 
         problemService.deleteProblem(43165L);
 
         verify(problemSolveHistoryRepository).deleteAllByProblemId(43165L);
         verify(reviewHistoryRepository).deleteAllByProblemId(43165L);
+        verify(problemRepository).delete(problem);
+    }
+
+    @Test
+    @DisplayName("북마크된 문제 삭제 시 해당 문제의 리뷰만 함께 정리한다")
+    void deleteProblem_bookmarkedProblem_deletesOnlyOwnedReview() {
+        CurrentUserContext.set(AuthenticatedUser.builder()
+                .id(1L)
+                .username("tester")
+                .displayName("테스터")
+                .build());
+
+        Problem problem = Problem.builder()
+                .platform("백준")
+                .title("미로 탐색")
+                .number("2178")
+                .link("https://www.acmicpc.net/problem/2178")
+                .tags(List.of("BFS"))
+                .difficulty(null)
+                .memo("나중에 다시 보기")
+                .result(null)
+                .needsReview(false)
+                .reviewHistory(List.of())
+                .createdAt(LocalDateTime.now())
+                .solvedDates(List.of())
+                .solveHistory(List.of())
+                .lastSolvedAt(null)
+                .bookmarked(true)
+                .build();
+        ReflectionTestUtils.setField(problem, "id", 2178L);
+
+        Review review = Review.builder()
+                .problem(problem)
+                .reviewCount(1)
+                .lastReviewedDate(LocalDate.of(2026, 3, 1))
+                .nextReviewDate(LocalDate.of(2026, 3, 2))
+                .build();
+
+        given(problemRepository.findByIdAndUserId(2178L, 1L)).willReturn(java.util.Optional.of(problem));
+        given(reviewRepository.findByProblemIdAndProblemUserId(2178L, 1L)).willReturn(java.util.Optional.of(review));
+
+        problemService.deleteProblem(2178L);
+
+        verify(problemSolveHistoryRepository).deleteAllByProblemId(2178L);
+        verify(reviewHistoryRepository).deleteAllByProblemId(2178L);
+        verify(reviewRepository).delete(review);
         verify(problemRepository).delete(problem);
     }
 }
