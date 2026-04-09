@@ -58,3 +58,5 @@ target/
 
 ### Script deps ###
 scripts/node_modules/
+scripts/__pycache__/
+*.pyc

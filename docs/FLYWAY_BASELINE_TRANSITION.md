@@ -1,63 +1,80 @@
-# Flyway Baseline Transition
+# Flyway Baseline 전환 문서
 
-## Why this project uses a single baseline
+이 문서는 기존 운영 DB를 Flyway 체계로 전환할 때만 필요한 1회성 운영 절차입니다.
+새로 만드는 빈 DB 환경에는 이 문서가 아니라 일반 Flyway 실행 설정을 사용하면 됩니다.
 
-This service has been running against a Railway PostgreSQL database that was created by Hibernate schema auto-update rather than by Flyway migrations.
+## 왜 이 프로젝트가 단일 baseline 을 쓰는가
 
-Because there is no reliable Flyway schema history in production, the safest migration strategy is:
+이 서비스는 과거에 Flyway 마이그레이션이 아니라 Hibernate schema auto-update 기반으로 생성된 Railway PostgreSQL DB를 사용해 운영되었습니다.
+
+운영 환경에 신뢰할 수 있는 Flyway 이력이 없기 때문에, 가장 안전한 전환 전략은 아래와 같습니다.
 
 1. Freeze the current schema as a single baseline migration.
 2. Mark the existing production schema as already being at that baseline.
 3. Start creating only forward migrations after that point.
 
-That is why the migration history in `src/main/resources/db/migration` has been squashed into `V1__init.sql`.
+그래서 현재 마이그레이션 히스토리는 `src/main/resources/db/migration/V1__init.sql`을 기준 baseline 으로 두고, 이후 변경분을 `V2`, `V3` ... 형태로 이어가도록 정리되어 있습니다.
 
-## Recommended production cutover
+## 언제 이 문서가 필요한가
 
-### 1. Deploy code with Flyway still disabled
+이 문서가 필요한 경우:
 
-Use:
+- 이미 운영 중인 PostgreSQL DB가 있음
+- 그 DB가 과거 Hibernate schema auto-update 기반으로 만들어졌음
+- `flyway_schema_history`가 아직 없음
+
+이 문서가 필요 없는 경우:
+
+- 새로 만드는 빈 DB 환경
+- 이미 Flyway 기반으로 관리 중인 환경
+
+## 권장 전환 절차
+
+### 1. 먼저 Flyway 없이 현재 스키마 검증
+
+설정:
 
 - `SPRING_FLYWAY_ENABLED=false`
 - `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`
 
-This confirms the application still boots against the existing Railway schema without Hibernate making further changes.
+이 단계는 Hibernate 가 추가 변경을 하지 않는 상태에서, 현재 운영 스키마로 애플리케이션이 정상 부팅되는지 먼저 확인하는 절차입니다.
 
-### 2. Create Flyway baseline metadata in the existing Railway database
+### 2. 기존 운영 DB에 baseline 메타데이터 생성
 
-Do a one-time deploy with:
+아래 설정으로 1회성 배포를 진행합니다:
 
 - `SPRING_FLYWAY_ENABLED=true`
 - `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true`
 - `SPRING_FLYWAY_BASELINE_VERSION=1`
 - `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`
 
-Because the production database is already non-empty, Flyway will create `flyway_schema_history`, register version `1`, and skip executing `V1__init.sql`.
+운영 DB는 이미 비어 있지 않으므로, Flyway 는 `flyway_schema_history`를 만들고 버전 `1`을 baseline 으로 기록한 뒤 `V1__init.sql` 실행은 건너뜁니다.
 
-If there are migrations after `V1` in the repository, Flyway will continue applying them in the same run. For example, the current repository includes `V2__add_oauth_accounts.sql`, so the one-time baseline deploy will baseline the existing schema at `1` and then apply `V2`.
+이후 저장소에 `V1` 뒤 버전이 있으면 같은 실행에서 이어서 적용합니다.
+예를 들어 현재 저장소에는 `V2__add_oauth_accounts.sql` 이후 마이그레이션이 있으므로, baseline 등록 후 다음 버전들이 순서대로 적용됩니다.
 
-### 3. Enable Flyway for normal app startup
+### 3. 이후부터는 일반 Flyway 시작 방식 사용
 
-After the baseline metadata exists, switch to:
+baseline 메타데이터가 만들어진 뒤에는 아래 일반 설정으로 전환합니다:
 
 - `SPRING_FLYWAY_ENABLED=true`
 - `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`
 - `SPRING_FLYWAY_BASELINE_ON_MIGRATE=false`
 
-At that point, startup should validate the existing schema and Flyway will consider `V1__init.sql` already applied.
+이후부터는 애플리케이션 시작 시 기존 스키마를 검증하고, Flyway 는 `V1__init.sql`이 이미 적용된 것으로 간주합니다.
 
-## New environments
+## 새 환경에서는 어떻게 하나
 
-For a brand-new empty database:
+새로 만드는 빈 DB 환경에서는 아래처럼 사용합니다:
 
 1. Set `SPRING_FLYWAY_ENABLED=true`
 2. Set `SPRING_JPA_HIBERNATE_DDL_AUTO=validate`
 3. Leave `SPRING_FLYWAY_BASELINE_ON_MIGRATE=false`
 
-Flyway will run `V1__init.sql` and create the schema from scratch.
+이 경우 Flyway 가 `V1__init.sql`부터 실행해서 스키마를 처음부터 생성합니다.
 
-## Important notes
+## 중요 주의사항
 
-- Do not run `migrate` with `baselineOnMigrate=true` against an empty database. That would skip `V1__init.sql`.
-- Do not enable Hibernate auto-update again after the cutover. Future schema changes should be added as `V2__...`, `V3__...` migrations.
-- If any environment already contains a `flyway_schema_history` table from a previous failed attempt, inspect it before enabling Flyway. You may need `flyway repair` or manual cleanup first.
+- 빈 DB에 `baselineOnMigrate=true`를 사용하면 안 됩니다. 그렇게 하면 `V1__init.sql`이 건너뛰어집니다.
+- 전환 이후에는 Hibernate auto-update를 다시 켜지 않는 편이 안전합니다. 이후 스키마 변경은 `V2__...`, `V3__...` 같은 마이그레이션으로 추가해야 합니다.
+- 어떤 환경에 이미 `flyway_schema_history`가 존재한다면 바로 진행하지 말고 먼저 상태를 점검해야 합니다. 필요하면 `flyway repair` 또는 수동 정리가 선행되어야 합니다.
