@@ -19,6 +19,26 @@ CTPS 웹 앱의 세션 인증, 문제/복습 도메인, 통합 검색, 외부 �
 - Study Set CRUD
 - 프로그래머스 카탈로그 수집 및 외부 검색 운영 API 제공
 
+## 연결되는 앱 화면
+
+아래 화면은 이 백엔드 API와 연결되는 CTPS 프론트엔드의 공개용 캡처입니다. 실제 계정이나 운영 데이터가 아닌 더미 데이터만 사용했습니다.
+
+| 로그인 | 비밀번호 재설정 |
+| --- | --- |
+| <img src="./docs/screenshots/login.png" alt="로그인 화면" width="420"> | <img src="./docs/screenshots/password-reset.png" alt="비밀번호 재설정 화면" width="420"> |
+
+| 대시보드 | 통합 검색 |
+| --- | --- |
+| <img src="./docs/screenshots/dashboard.png" alt="대시보드 화면" width="420"> | <img src="./docs/screenshots/search.png" alt="통합 검색 화면" width="420"> |
+
+| 문제 관리 | Study Set |
+| --- | --- |
+| <img src="./docs/screenshots/problems.png" alt="문제 관리 화면" width="420"> | <img src="./docs/screenshots/study-sets.png" alt="Study Set 화면" width="420"> |
+
+| 계정 설정 |
+| --- |
+| <img src="./docs/screenshots/account.png" alt="계정 설정 화면" width="420"> |
+
 ## 기술 스택
 
 - Java 17
