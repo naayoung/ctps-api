@@ -89,6 +89,10 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function writeLine(message) {
+  process.stdout.write(`${message}\n`);
+}
+
 function normalizeWhitespace(value) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -467,8 +471,8 @@ async function main() {
   }
 
   if (options.dryRun) {
-    console.log(JSON.stringify(items.slice(0, 5), null, 2));
-    console.log(
+    writeLine(JSON.stringify(items.slice(0, 5), null, 2));
+    writeLine(
       `dry-run source=playwright mode=${options.mode} total=${items.length} new=${newItemCount} existing=${existingItemCount}`
     );
     return;
@@ -476,7 +480,7 @@ async function main() {
 
   const outputFile = await writeSnapshot(options.importDir, items, options.retention);
   await triggerIngest(options.ingestUrl, options.adminToken);
-  console.log(
+  writeLine(
     `wrote ${items.length} items from playwright to ${outputFile} `
     + `(mode=${options.mode}, new=${newItemCount}, existing=${existingItemCount})`
   );

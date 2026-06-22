@@ -22,16 +22,16 @@ public class AuthBootstrapService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${auth.bootstrap.username:ctps}")
+    @Value("${auth.bootstrap.username:}")
     private String bootstrapUsername;
 
-    @Value("${auth.bootstrap.password:ctps1234}")
+    @Value("${auth.bootstrap.password:}")
     private String bootstrapPassword;
 
     @Value("${auth.bootstrap.display-name:CTPS 사용자}")
     private String bootstrapDisplayName;
 
-    @Value("${auth.bootstrap.email:ctps@local.ctps}")
+    @Value("${auth.bootstrap.email:}")
     private String bootstrapEmail;
 
     @Value("${auth.bootstrap.enabled:true}")

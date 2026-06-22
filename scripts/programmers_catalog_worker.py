@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--url-template",
         default=os.getenv("PROGRAMMERS_CRAWLER_URL_TEMPLATE", DEFAULT_URL_TEMPLATE),
-        help="Listing URL template. Use {page} placeholder.",
+        help="Listing URL template. Use {page} token.",
     )
     parser.add_argument(
         "--fallback-feed-url",

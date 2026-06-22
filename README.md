@@ -69,8 +69,8 @@ cd backend
 
 ```bash
 DB_URL=jdbc:postgresql://localhost:5432/ctps
-DB_USERNAME=postgres
-DB_PASSWORD=postgres
+DB_USERNAME=your-db-username
+DB_PASSWORD=your-db-password
 APP_FRONTEND_BASE_URL=http://localhost:5173
 APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
@@ -78,9 +78,9 @@ APP_CORS_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 배포 권장값:
 
 ```bash
-APP_FRONTEND_BASE_URL=https://ctps.vercel.app
-APP_BACKEND_BASE_URL=https://ctps.vercel.app
-APP_CORS_ALLOWED_ORIGINS=https://ctps.vercel.app,https://ctps-web.vercel.app
+APP_FRONTEND_BASE_URL=https://your-frontend-domain.example
+APP_BACKEND_BASE_URL=https://your-frontend-domain.example
+APP_CORS_ALLOWED_ORIGINS=https://your-frontend-domain.example
 APP_CORS_ALLOWED_ORIGIN_PATTERNS=
 AUTH_SESSION_SECURE_COOKIE=true
 AUTH_SESSION_SAME_SITE=Lax
